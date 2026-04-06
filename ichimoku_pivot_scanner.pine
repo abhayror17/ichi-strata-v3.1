@@ -19,8 +19,9 @@ kijun = donchian(basePeriods)
 spanA = (tenkan + kijun) / 2
 spanB = donchian(laggingSpan2Periods)
 
-cloudTopNow = math.max(spanA[displacement - 1], spanB[displacement - 1])
-cloudBottomNow = math.min(spanA[displacement - 1], spanB[displacement - 1])
+// Cloud visible now was projected from displacement bars ago
+cloudTopNow = math.max(spanA[displacement], spanB[displacement])
+cloudBottomNow = math.min(spanA[displacement], spanB[displacement])
 chikou = close[displacement]
 
 // ============================================
@@ -36,10 +37,12 @@ dSpanA = request.security(syminfo.tickerid, "D", ((ta.highest(conversionPeriods)
 dSpanB = request.security(syminfo.tickerid, "D", (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
 // Daily cloud at CURRENT position (for Tenkan/Kijun comparison)
-[dCloudTop, dCloudBottom] = request.security(syminfo.tickerid, "D", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement - 1]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement - 1])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+// Cloud visible now was projected from displacement bars ago
+[dCloudTop, dCloudBottom] = request.security(syminfo.tickerid, "D", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
 // Daily cloud at HISTORICAL position for Chikou comparison (displacement*2 bars ago)
-[dCloudTopChikou, dCloudBottomChikou] = request.security(syminfo.tickerid, "D", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2 - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2 - 1]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2 - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2 - 1])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+// Chikou shows price from displacement bars ago, compare to cloud at that time
+[dCloudTopChikou, dCloudBottomChikou] = request.security(syminfo.tickerid, "D", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
 // Daily Chikou - price from displacement bars ago
 chikouD = request.security(syminfo.tickerid, "D", close[displacement], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
@@ -60,10 +63,12 @@ tf15SpanA = request.security(syminfo.tickerid, "15", ((ta.highest(conversionPeri
 tf15SpanB = request.security(syminfo.tickerid, "15", (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
 // 15M cloud at CURRENT position (for Tenkan/Kijun comparison)
-[cloudTop15, cloudBottom15] = request.security(syminfo.tickerid, "15", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement - 1]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement - 1])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+// Cloud visible now was projected from displacement bars ago
+[cloudTop15, cloudBottom15] = request.security(syminfo.tickerid, "15", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
 // 15M cloud at HISTORICAL position for Chikou comparison (displacement*2 bars ago)
-[cloudTop15Chikou, cloudBottom15Chikou] = request.security(syminfo.tickerid, "15", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2 - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2 - 1]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2 - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2 - 1])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+// Chikou shows price from displacement bars ago, compare to cloud at that time
+[cloudTop15Chikou, cloudBottom15Chikou] = request.security(syminfo.tickerid, "15", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
 // 15M Chikou - price from displacement bars ago
 chikou15 = request.security(syminfo.tickerid, "15", close[displacement], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
