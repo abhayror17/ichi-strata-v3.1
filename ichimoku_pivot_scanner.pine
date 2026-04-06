@@ -24,37 +24,43 @@ cloudBottomNow = math.min(spanA[displacement - 1], spanB[displacement - 1])
 chikou = close[displacement]
 
 // ============================================
-// DAILY TF ICHIMOKU
+// DAILY TF ICHIMOKU - INLINE EXPRESSIONS ONLY
 // ============================================
-dailyIchimoku() =>
-    _tenkan = (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2
-    _kijun = (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2
-    _spanA = (_tenkan + _kijun) / 2
-    _spanB = (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2
-    _cloudTop = math.max(_spanA[displacement - 1], _spanB[displacement - 1])
-    _cloudBottom = math.min(_spanA[displacement - 1], _spanB[displacement - 1])
-    _chikou = close[displacement]
-    [_tenkan, _kijun, _spanA, _spanB, _cloudTop, _cloudBottom, _chikou, close, high, low]
+// Get daily OHLC
+[dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", [close, high, low], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
-[dTenkan, dKijun, dSpanA, dSpanB, cloudTopD, cloudBottomD, chikouD, dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", dailyIchimoku(), lookahead = barmerge.lookahead_off)
+// Daily Tenkan, Kijun, SpanA, SpanB calculated on daily data
+dTenkan = request.security(syminfo.tickerid, "D", (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+dKijun = request.security(syminfo.tickerid, "D", (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+dSpanA = request.security(syminfo.tickerid, "D", ((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+dSpanB = request.security(syminfo.tickerid, "D", (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+
+// Daily cloud at current position - calculated from DAILY displaced values
+[dCloudTop, dCloudBottom] = request.security(syminfo.tickerid, "D", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement - 1]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement - 1])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+
+// Daily Chikou
+chikouD = request.security(syminfo.tickerid, "D", close[displacement], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
 // Daily Pivot
 pivotD = (dHigh[1] + dLow[1] + dClose[1]) / 3
 
 // ============================================
-// 15 MIN TF ICHIMOKU
+// 15 MIN TF ICHIMOKU - INLINE EXPRESSIONS ONLY
 // ============================================
-tf15Ichimoku() =>
-    _tenkan = (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2
-    _kijun = (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2
-    _spanA = (_tenkan + _kijun) / 2
-    _spanB = (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2
-    _cloudTop = math.max(_spanA[displacement - 1], _spanB[displacement - 1])
-    _cloudBottom = math.min(_spanA[displacement - 1], _spanB[displacement - 1])
-    _chikou = close[displacement]
-    [_tenkan, _kijun, _spanA, _spanB, _cloudTop, _cloudBottom, _chikou, close]
+// Get 15M close
+close15 = request.security(syminfo.tickerid, "15", close, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
-[tf15Tenkan, tf15Kijun, tf15SpanA, tf15SpanB, cloudTop15, cloudBottom15, chikou15, close15] = request.security(syminfo.tickerid, "15", tf15Ichimoku(), lookahead = barmerge.lookahead_off)
+// 15M Tenkan, Kijun, SpanA, SpanB calculated on 15M data
+tf15Tenkan = request.security(syminfo.tickerid, "15", (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+tf15Kijun = request.security(syminfo.tickerid, "15", (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+tf15SpanA = request.security(syminfo.tickerid, "15", ((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+tf15SpanB = request.security(syminfo.tickerid, "15", (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+
+// 15M cloud at current position - calculated from 15M displaced values
+[cloudTop15, cloudBottom15] = request.security(syminfo.tickerid, "15", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement - 1]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement - 1], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement - 1])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+
+// 15M Chikou
+chikou15 = request.security(syminfo.tickerid, "15", close[displacement], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
 
 // 15M Pivot (using daily pivot)
 pivot15 = pivotD
@@ -62,14 +68,14 @@ pivot15 = pivotD
 // ============================================
 // DAILY CONDITIONS
 // ============================================
-dTenkanAbove = dTenkan > cloudTopD
-dKijunAbove  = dKijun > cloudTopD
-dChikouAbove = chikouD > cloudTopD
+dTenkanAbove = dTenkan > dCloudTop
+dKijunAbove  = dKijun > dCloudTop
+dChikouAbove = chikouD > dCloudTop
 dAbovePivot  = dClose > pivotD
 
-dTenkanBelow = dTenkan < cloudBottomD
-dKijunBelow  = dKijun < cloudBottomD
-dChikouBelow = chikouD < cloudBottomD
+dTenkanBelow = dTenkan < dCloudBottom
+dKijunBelow  = dKijun < dCloudBottom
+dChikouBelow = chikouD < dCloudBottom
 dBelowPivot  = dClose < pivotD
 
 dBull = dTenkanAbove and dKijunAbove and dChikouAbove and dAbovePivot
