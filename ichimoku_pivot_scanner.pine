@@ -2,7 +2,7 @@
 indicator("ichi-strata v4.0 (Clean & Stable)", overlay=true, max_labels_count=500)
 
 // ============================================
-// ICHIMOKU CORE - CURRENT TF
+// ICHIMOKU SETTINGS
 // ============================================
 conversionPeriods = input.int(9, minval=1, title="Tenkan Length")
 basePeriods = input.int(26, minval=1, title="Kijun Length")
@@ -11,86 +11,94 @@ displacement = input.int(26, minval=1, title="Displacement")
 
 donchian(len) => (ta.highest(len) + ta.lowest(len)) / 2
 
-// Current TF Ichimoku
+// ============================================
+// CURRENT TF ICHIMOKU (for chart display)
+// ============================================
 tenkan = donchian(conversionPeriods)
 kijun = donchian(basePeriods)
 spanA = (tenkan + kijun) / 2
 spanB = donchian(laggingSpan2Periods)
 
-// Cloud at current position (displaced back from projected)
 cloudTopNow = math.max(spanA[displacement - 1], spanB[displacement - 1])
 cloudBottomNow = math.min(spanA[displacement - 1], spanB[displacement - 1])
-
-// Chikou (price shifted back)
 chikou = close[displacement]
 
 // ============================================
-// DAILY TF - PROPER MULTI-TF HANDLING
+// DAILY TF ICHIMOKU
 // ============================================
-// Calculate daily Ichimoku with cloud displacement handled INSIDE security
-// This ensures proper daily bar indexing regardless of current TF
-
 dailyIchimoku() =>
     _tenkan = (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2
     _kijun = (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2
     _spanA = (_tenkan + _kijun) / 2
     _spanB = (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2
-    // Cloud at current position (look back displacement bars)
     _cloudTop = math.max(_spanA[displacement - 1], _spanB[displacement - 1])
     _cloudBottom = math.min(_spanA[displacement - 1], _spanB[displacement - 1])
     _chikou = close[displacement]
     [_tenkan, _kijun, _spanA, _spanB, _cloudTop, _cloudBottom, _chikou, close, high, low]
 
-[dTenkan, dKijun, dSpanA, dSpanB, cloudTopDNow, cloudBottomDNow, chikouD, dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", dailyIchimoku(), lookahead = barmerge.lookahead_off)
+[dTenkan, dKijun, dSpanA, dSpanB, cloudTopD, cloudBottomD, chikouD, dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", dailyIchimoku(), lookahead = barmerge.lookahead_off)
 
-// Daily Pivot (from yesterday's HLC)
+// Daily Pivot
 pivotD = (dHigh[1] + dLow[1] + dClose[1]) / 3
 
 // ============================================
-// CURRENT TF PIVOT (Daily Pivot for consistency)
+// 15 MIN TF ICHIMOKU
 // ============================================
-pivot = pivotD  // Use same daily pivot for current TF
+tf15Ichimoku() =>
+    _tenkan = (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2
+    _kijun = (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2
+    _spanA = (_tenkan + _kijun) / 2
+    _spanB = (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2
+    _cloudTop = math.max(_spanA[displacement - 1], _spanB[displacement - 1])
+    _cloudBottom = math.min(_spanA[displacement - 1], _spanB[displacement - 1])
+    _chikou = close[displacement]
+    [_tenkan, _kijun, _spanA, _spanB, _cloudTop, _cloudBottom, _chikou, close]
+
+[tf15Tenkan, tf15Kijun, tf15SpanA, tf15SpanB, cloudTop15, cloudBottom15, chikou15, close15] = request.security(syminfo.tickerid, "15", tf15Ichimoku(), lookahead = barmerge.lookahead_off)
+
+// 15M Pivot (using daily pivot)
+pivot15 = pivotD
 
 // ============================================
-// CONDITIONS - CURRENT TF
+// DAILY CONDITIONS
 // ============================================
-tfTenkanAbove = tenkan > cloudTopNow
-tfKijunAbove  = kijun > cloudTopNow
-tfChikouAbove = chikou > cloudTopNow
-tfAbovePivot  = close > pivot
-
-tfTenkanBelow = tenkan < cloudBottomNow
-tfKijunBelow  = kijun < cloudBottomNow
-tfChikouBelow = chikou < cloudBottomNow
-tfBelowPivot  = close < pivot
-
-tfBull = tfTenkanAbove and tfKijunAbove and tfChikouAbove and tfAbovePivot
-tfBear = tfTenkanBelow and tfKijunBelow and tfChikouBelow and tfBelowPivot
-
-// ============================================
-// CONDITIONS - DAILY TF
-// ============================================
-dTenkanAbove = dTenkan > cloudTopDNow
-dKijunAbove  = dKijun > cloudTopDNow
-dChikouAbove = chikouD > cloudTopDNow
+dTenkanAbove = dTenkan > cloudTopD
+dKijunAbove  = dKijun > cloudTopD
+dChikouAbove = chikouD > cloudTopD
 dAbovePivot  = dClose > pivotD
 
-dTenkanBelow = dTenkan < cloudBottomDNow
-dKijunBelow  = dKijun < cloudBottomDNow
-dChikouBelow = chikouD < cloudBottomDNow
+dTenkanBelow = dTenkan < cloudBottomD
+dKijunBelow  = dKijun < cloudBottomD
+dChikouBelow = chikouD < cloudBottomD
 dBelowPivot  = dClose < pivotD
 
 dBull = dTenkanAbove and dKijunAbove and dChikouAbove and dAbovePivot
 dBear = dTenkanBelow and dKijunBelow and dChikouBelow and dBelowPivot
 
 // ============================================
-// SIGNAL ENGINE (NON-REPAINT)
+// 15 MIN CONDITIONS
 // ============================================
-buySignal  = dBull and tfBull and not (dBull[1] and tfBull[1])
-sellSignal = dBear and tfBear and not (dBear[1] and tfBear[1])
+tf15TenkanAbove = tf15Tenkan > cloudTop15
+tf15KijunAbove  = tf15Kijun > cloudTop15
+tf15ChikouAbove = chikou15 > cloudTop15
+tf15AbovePivot  = close15 > pivot15
+
+tf15TenkanBelow = tf15Tenkan < cloudBottom15
+tf15KijunBelow  = tf15Kijun < cloudBottom15
+tf15ChikouBelow = chikou15 < cloudBottom15
+tf15BelowPivot  = close15 < pivot15
+
+tf15Bull = tf15TenkanAbove and tf15KijunAbove and tf15ChikouAbove and tf15AbovePivot
+tf15Bear = tf15TenkanBelow and tf15KijunBelow and tf15ChikouBelow and tf15BelowPivot
 
 // ============================================
-// PLOTTING
+// SIGNAL ENGINE (DAILY + 15M)
+// ============================================
+buySignal  = dBull and tf15Bull and not (dBull[1] and tf15Bull[1])
+sellSignal = dBear and tf15Bear and not (dBear[1] and tf15Bear[1])
+
+// ============================================
+// PLOTTING (Current TF for visual)
 // ============================================
 plot(tenkan, color=color.blue, title="Tenkan")
 plot(kijun, color=color.red, title="Kijun")
@@ -113,49 +121,49 @@ if sellSignal
         style=label.style_label_down, color=color.red, textcolor=color.white)
 
 // ============================================
-// DASHBOARD TABLE
+// DASHBOARD TABLE (Daily + 15M only)
 // ============================================
 var table t = table.new(position.top_right, 3, 7, bgcolor=color.new(color.black, 80), border_width=1)
 
 if barstate.islast
     table.cell(t, 0, 0, "Component", text_color=color.white, text_size=size.small)
     table.cell(t, 1, 0, "Daily", text_color=color.white, text_size=size.small)
-    table.cell(t, 2, 0, "Current TF", text_color=color.white, text_size=size.small)
+    table.cell(t, 2, 0, "15M", text_color=color.white, text_size=size.small)
     
     table.cell(t, 0, 1, "Tenkan", text_color=color.white, text_size=size.tiny)
     table.cell(t, 1, 1, dTenkanAbove ? "Above" : dTenkanBelow ? "Below" : "Inside", 
                text_color=dTenkanAbove ? color.green : dTenkanBelow ? color.red : color.gray, text_size=size.tiny)
-    table.cell(t, 2, 1, tfTenkanAbove ? "Above" : tfTenkanBelow ? "Below" : "Inside", 
-               text_color=tfTenkanAbove ? color.green : tfTenkanBelow ? color.red : color.gray, text_size=size.tiny)
+    table.cell(t, 2, 1, tf15TenkanAbove ? "Above" : tf15TenkanBelow ? "Below" : "Inside", 
+               text_color=tf15TenkanAbove ? color.green : tf15TenkanBelow ? color.red : color.gray, text_size=size.tiny)
     
     table.cell(t, 0, 2, "Kijun", text_color=color.white, text_size=size.tiny)
     table.cell(t, 1, 2, dKijunAbove ? "Above" : dKijunBelow ? "Below" : "Inside", 
                text_color=dKijunAbove ? color.green : dKijunBelow ? color.red : color.gray, text_size=size.tiny)
-    table.cell(t, 2, 2, tfKijunAbove ? "Above" : tfKijunBelow ? "Below" : "Inside", 
-               text_color=tfKijunAbove ? color.green : tfKijunBelow ? color.red : color.gray, text_size=size.tiny)
+    table.cell(t, 2, 2, tf15KijunAbove ? "Above" : tf15KijunBelow ? "Below" : "Inside", 
+               text_color=tf15KijunAbove ? color.green : tf15KijunBelow ? color.red : color.gray, text_size=size.tiny)
     
     table.cell(t, 0, 3, "Chikou", text_color=color.white, text_size=size.tiny)
     table.cell(t, 1, 3, dChikouAbove ? "Above" : dChikouBelow ? "Below" : "Inside", 
                text_color=dChikouAbove ? color.green : dChikouBelow ? color.red : color.gray, text_size=size.tiny)
-    table.cell(t, 2, 3, tfChikouAbove ? "Above" : tfChikouBelow ? "Below" : "Inside", 
-               text_color=tfChikouAbove ? color.green : tfChikouBelow ? color.red : color.gray, text_size=size.tiny)
+    table.cell(t, 2, 3, tf15ChikouAbove ? "Above" : tf15ChikouBelow ? "Below" : "Inside", 
+               text_color=tf15ChikouAbove ? color.green : tf15ChikouBelow ? color.red : color.gray, text_size=size.tiny)
     
     table.cell(t, 0, 4, "Pivot", text_color=color.white, text_size=size.tiny)
     table.cell(t, 1, 4, dAbovePivot ? "Above" : "Below", 
                text_color=dAbovePivot ? color.green : color.red, text_size=size.tiny)
-    table.cell(t, 2, 4, tfAbovePivot ? "Above" : "Below", 
-               text_color=tfAbovePivot ? color.green : color.red, text_size=size.tiny)
+    table.cell(t, 2, 4, tf15AbovePivot ? "Above" : "Below", 
+               text_color=tf15AbovePivot ? color.green : color.red, text_size=size.tiny)
     
     table.cell(t, 0, 5, "Market", text_color=color.white, text_size=size.tiny)
     table.cell(t, 1, 5, dBull ? "BUYERS" : dBear ? "SELLERS" : "NEUTRAL", 
                text_color=dBull ? color.green : dBear ? color.red : color.gray, text_size=size.tiny)
-    table.cell(t, 2, 5, tfBull ? "BUYERS" : tfBear ? "SELLERS" : "NEUTRAL", 
-               text_color=tfBull ? color.green : tfBear ? color.red : color.gray, text_size=size.tiny)
+    table.cell(t, 2, 5, tf15Bull ? "BUYERS" : tf15Bear ? "SELLERS" : "NEUTRAL", 
+               text_color=tf15Bull ? color.green : tf15Bear ? color.red : color.gray, text_size=size.tiny)
     
     table.cell(t, 0, 6, "Signal", text_color=color.white, text_size=size.tiny)
     table.merge_cells(t, 1, 6, 2, 6)
-    table.cell(t, 1, 6, dBull and tfBull ? "BUY SIGNAL" : dBear and tfBear ? "SELL SIGNAL" : "WAIT", 
-               text_color=dBull and tfBull ? color.green : dBear and tfBear ? color.red : color.gray, text_size=size.small)
+    table.cell(t, 1, 6, dBull and tf15Bull ? "BUY SIGNAL" : dBear and tf15Bear ? "SELL SIGNAL" : "WAIT", 
+               text_color=dBull and tf15Bull ? color.green : dBear and tf15Bear ? color.red : color.gray, text_size=size.small)
 
 // ============================================
 // ALERTS
@@ -166,4 +174,4 @@ alertcondition(sellSignal, "SELL", "Ichimoku + Pivot SELL Signal!")
 // ============================================
 // BACKGROUND
 // ============================================
-bgcolor(dBull and tfBull ? color.new(color.green, 90) : dBear and tfBear ? color.new(color.red, 90) : na)
+bgcolor(dBull and tf15Bull ? color.new(color.green, 90) : dBear and tf15Bear ? color.new(color.red, 90) : na)
