@@ -18,18 +18,13 @@ plot(baseLine, color=#B71C1C, title="Base Line")
 plot(close, offset = -displacement + 1, color=#43A047, title="Lagging Span")
 p1 = plot(leadLine1, offset = displacement - 1, color=#A5D6A7, title="Leading Span A")
 p2 = plot(leadLine2, offset = displacement - 1, color=#EF9A9A, title="Leading Span B")
-plot(leadLine1 > leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Upper Line", display = display.none)
-plot(leadLine1 < leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Lower Line", display = display.none)
+plot(leadLine1 > leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Upper Line", display = display.none) 
+plot(leadLine1 < leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, title = "Kumo Cloud Lower Line", display = display.none) 
 fill(p1, p2, title = "Cloud Fill", color = leadLine1 > leadLine2 ? color.rgb(67, 160, 71, 90) : color.rgb(244, 67, 54, 90))
 
-// Cloud Top/Bottom for analysis
+// Cloud Top/Bottom for scanner analysis
 cloudTop = leadLine1 > leadLine2 ? leadLine1 : leadLine2
 cloudBottom = leadLine1 < leadLine2 ? leadLine1 : leadLine2
-
-// Daily Ichimoku for multi-TF analysis
-[conversionLineD, baseLineD, leadLine1D, leadLine2D] = request.security(syminfo.tickerid, "D", [donchian(conversionPeriods), donchian(basePeriods), math.avg(donchian(conversionPeriods), donchian(basePeriods)), donchian(laggingSpan2Periods)], lookahead=barmerge.lookahead_on)
-cloudTopD = leadLine1D > leadLine2D ? leadLine1D : leadLine2D
-cloudBottomD = leadLine1D < leadLine2D ? leadLine1D : leadLine2D
 
 // ============================================
 // PIVOT POINTS (Official Code)
@@ -49,27 +44,27 @@ showLevel2and3 = pivotTypeInput != "DM"
 showLevel4 = pivotTypeInput != "DM" and pivotTypeInput != "Fibonacci"
 showLevel5 = pivotTypeInput == "Traditional" or pivotTypeInput == "Camarilla"
 
-pColorInput = input.color(DEFAULT_COLOR, "P‏  ‏  ‏", inline="P", group="levels", display = display.none)
+pColorInput = input.color(DEFAULT_COLOR, "P", inline="P", group="levels", display = display.none)
 pShowInput = input.bool(true, "", inline="P", group="levels", display = display.none)
 s1ColorInput = input.color(DEFAULT_COLOR, "S1", inline="S1/R1" , group="levels", display = display.none)
 s1ShowInput = input.bool(true, "", inline="S1/R1", group="levels", display = display.none)
-r1ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R1", inline="S1/R1", group="levels", display = display.none)
+r1ColorInput = input.color(DEFAULT_COLOR, "R1", inline="S1/R1", group="levels", display = display.none)
 r1ShowInput = input.bool(true, "", inline="S1/R1", group="levels", display = display.none)
 s2ColorInput = input.color(DEFAULT_COLOR, "S2", inline="S2/R2", group="levels", display = display.none, active = showLevel2and3)
 s2ShowInput = input.bool(true, "", inline="S2/R2", group="levels", display = display.none, active = showLevel2and3)
-r2ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R2", inline="S2/R2", group="levels", display = display.none, active = showLevel2and3)
+r2ColorInput = input.color(DEFAULT_COLOR, "R2", inline="S2/R2", group="levels", display = display.none, active = showLevel2and3)
 r2ShowInput = input.bool(true, "", inline="S2/R2", group="levels", display = display.none, active = showLevel2and3)
 s3ColorInput = input.color(DEFAULT_COLOR, "S3", inline="S3/R3", group="levels", display = display.none, active = showLevel2and3)
 s3ShowInput = input.bool(true, "", inline="S3/R3", group="levels", display = display.none, active = showLevel2and3)
-r3ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R3", inline="S3/R3", group="levels", display = display.none, active = showLevel2and3)
+r3ColorInput = input.color(DEFAULT_COLOR, "R3", inline="S3/R3", group="levels", display = display.none, active = showLevel2and3)
 r3ShowInput = input.bool(true, "", inline="S3/R3", group="levels", display = display.none, active = showLevel2and3)
 s4ColorInput = input.color(DEFAULT_COLOR, "S4", inline="S4/R4", group="levels", display = display.none, active = showLevel4)
 s4ShowInput = input.bool(true, "", inline="S4/R4", group="levels", display = display.none, active = showLevel4)
-r4ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R4", inline="S4/R4", group="levels", display = display.none, active = showLevel4)
+r4ColorInput = input.color(DEFAULT_COLOR, "R4", inline="S4/R4", group="levels", display = display.none, active = showLevel4)
 r4ShowInput = input.bool(true, "", inline="S4/R4", group="levels", display = display.none, active = showLevel4)
 s5ColorInput = input.color(DEFAULT_COLOR, "S5", inline="S5/R5", group="levels", display = display.none, active = showLevel5)
 s5ShowInput = input.bool(true, "", inline="S5/R5", group="levels", display = display.none, active = showLevel5)
-r5ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R5", inline="S5/R5", group="levels", display = display.none, active = showLevel5)
+r5ColorInput = input.color(DEFAULT_COLOR, "R5", inline="S5/R5", group="levels", display = display.none, active = showLevel5)
 r5ShowInput = input.bool(true, "", inline="S5/R5", group="levels", display = display.none, active = showLevel5)
 
 type graphicSettings
@@ -126,7 +121,7 @@ var drawnGraphics = matrix.new<pivotGraphic>()
 localPivotTimeframeChange = timeframe.change(pivotTimeframe) and year % pivotYearMultiplier == 0
 securityPivotTimeframeChange = timeframe.change(timeframe.period) and year % pivotYearMultiplier == 0
 
-pivotTimeframeChangeCounter(condition) =>
+pivotTimeframeChangeCounter(condition) => 
     var count = 0
     if condition and bar_index > 0
         count += 1
@@ -138,13 +133,6 @@ securityPivotPointsArray = ta.pivot_point_levels(pivotTypeInput, securityPivotTi
 securityTimeframe = timeframe.isintraday ? "1D" : timeframe.period
 [securityPivots, securityPivotCounter] = request.security(syminfo.tickerid, pivotTimeframe, [securityPivotPointsArray, pivotTimeframeChangeCounter(securityPivotTimeframeChange)], lookahead = barmerge.lookahead_on)
 pivotPointsArray = isDailyBasedInput ? securityPivots : localPivots
-
-// Extract pivot values for scanner
-pivot = array.get(pivotPointsArray, 0)
-
-// Daily pivot for multi-TF analysis
-dailyPivotsArray = request.security(syminfo.tickerid, "D", ta.pivot_point_levels(pivotTypeInput, timeframe.change("D")), lookahead=barmerge.lookahead_on)
-pivotD = array.get(dailyPivotsArray, 0)
 
 affixOldPivots(endTime) =>
     if drawnGraphics.rows() > 0
@@ -179,7 +167,7 @@ localPivotDrawConditionStatic = not isDailyBasedInput and localPivotTimeframeCha
 securityPivotDrawConditionStatic = isDailyBasedInput and securityPivotCounter != securityPivotCounter[1]
 
 var isMultiYearly = array.from("Biyearly", "Triyearly", "Quinquennially", "Decennially").includes(pivotAnchorInput)
-localPivotDrawConditionDeveloping = not isDailyBasedInput and time_close == time_close(pivotTimeframe) and not isMultiYearly
+localPivotDrawConditionDeveloping = not isDailyBasedInput and time_close == time_close(pivotTimeframe) and not isMultiYearly 
 securityPivotDrawConditionDeveloping = false
 
 if (securityPivotDrawConditionStatic or localPivotDrawConditionStatic)
@@ -191,23 +179,33 @@ if (barstate.islastconfirmedhistory and drawnGraphics.columns() == 0)
     if not na(securityPivots) and securityPivotCounter > 0
         if isDailyBasedInput
             drawNewPivots(FIRST_BAR_TIME)
-        else
+        else 
             runtime.error("Not enough intraday data to calculate Pivot Points. Lower the Pivots Timeframe or turn on the 'Use Daily-based Values' option in the indicator settings.")
     else
         runtime.error("Not enough data to calculate Pivot Points. Lower the Pivots Timeframe in the indicator settings.")
 
 // ============================================
-// SCANNER SETTINGS
+// SCANNER - Multi-TF Analysis
 // ============================================
+
+// Daily Ichimoku for multi-TF
+[conversionLineD, baseLineD, leadLine1D, leadLine2D] = request.security(syminfo.tickerid, "D", [conversionLine, baseLine, leadLine1, leadLine2], lookahead=barmerge.lookahead_on)
+cloudTopD = leadLine1D > leadLine2D ? leadLine1D : leadLine2D
+cloudBottomD = leadLine1D < leadLine2D ? leadLine2D : leadLine1D
+
+// Daily Pivot
+dailyPivots = request.security(syminfo.tickerid, "D", ta.pivot_point_levels(pivotTypeInput, timeframe.change("D")), lookahead=barmerge.lookahead_on)
+pivotD = array.get(dailyPivots, 0)
+
+// Current Pivot
+pivot = array.get(pivotPointsArray, 0)
+
+// Scanner Settings
 grp_scanner = "Scanner Settings"
 showSignalLabels = input.bool(true, "Show Signal Labels", group=grp_scanner)
 showInfoTable = input.bool(true, "Show Info Table", group=grp_scanner)
 alertOnBuy = input.bool(true, "Buy Signal Alerts", group=grp_scanner)
 alertOnSell = input.bool(true, "Sell Signal Alerts", group=grp_scanner)
-
-// ============================================
-// MARKET CONDITION ANALYSIS
-// ============================================
 
 // DAILY MARKET CONDITIONS
 dailyTenkanAboveCloud = conversionLineD > cloudTopD
@@ -235,27 +233,21 @@ tfPriceBelowPivot = close < pivot
 tfBuyersMarket = tfTenkanAboveCloud and tfKijunAboveCloud and tfChikouAboveCloud and tfPriceAbovePivot
 tfSellersMarket = tfTenkanBelowCloud and tfKijunBelowCloud and tfChikouBelowCloud and tfPriceBelowPivot
 
-// ============================================
 // SIGNAL GENERATION
-// ============================================
 var bool buySignal = false
 buySignal := dailyBuyersMarket and tfBuyersMarket and not buySignal[1]
 
 var bool sellSignal = false
 sellSignal := dailySellersMarket and tfSellersMarket and not sellSignal[1]
 
-// ============================================
 // SIGNAL LABELS
-// ============================================
 if showSignalLabels and buySignal
     label.new(bar_index, low, "BUY\nSL: " + str.tostring(baseLine, "#.####"), style=label.style_label_up, color=color.green, textcolor=color.white, size=size.normal)
 
 if showSignalLabels and sellSignal
     label.new(bar_index, high, "SELL\nSL: " + str.tostring(baseLine, "#.####"), style=label.style_label_down, color=color.red, textcolor=color.white, size=size.normal)
 
-// ============================================
 // INFO TABLE
-// ============================================
 var table infoTable = table.new(position.top_right, 3, 10, bgcolor=color.new(color.black, 80), border_width=1)
 
 if showInfoTable and barstate.islast
@@ -295,13 +287,9 @@ if showInfoTable and barstate.islast
     table.merge_cells(infoTable, 1, 8, 2, 8)
     table.cell(infoTable, 1, 8, str.tostring(pivot, "#.####"), text_color=color.yellow, text_size=size.tiny)
 
-// ============================================
 // ALERTS
-// ============================================
 alertcondition(alertOnBuy and buySignal, "Buy Signal", "Ichimoku + Pivot BUY Signal!")
 alertcondition(alertOnSell and sellSignal, "Sell Signal", "Ichimoku + Pivot SELL Signal!")
 
-// ============================================
 // BACKGROUND COLOR
-// ============================================
 bgcolor(dailyBuyersMarket and tfBuyersMarket ? color.new(color.green, 90) : dailySellersMarket and tfSellersMarket ? color.new(color.red, 90) : na)
