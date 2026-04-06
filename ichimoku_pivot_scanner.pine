@@ -27,20 +27,14 @@ chikou = close[displacement]
 // ============================================
 // DAILY TF - ALL CALCULATED INSIDE SECURITY
 // ============================================
-// Calculate everything inside security to prevent TF dependency
-[dTenkan, dKijun, dSpanA, dSpanB, dClose, dHigh, dLow] = request.security(
-    syminfo.tickerid, "D",
-    [
-        (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2,  // tenkan
-        (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2,              // kijun
-        ((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + 
-         (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2,        // spanA
-        (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2, // spanB
-        close,                                                                // close
-        high,                                                                 // high
-        low                                                                   // low
-    ],
-    lookahead = barmerge.lookahead_off)
+// Helper function for daily calculations
+dailyDonchian(len) => (ta.highest(len) + ta.lowest(len)) / 2
+
+// Get daily OHLC first
+[dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", [close, high, low], lookahead = barmerge.lookahead_off)
+
+// Get daily Ichimoku - calculated on daily data
+[dTenkan, dKijun, dSpanA, dSpanB] = request.security(syminfo.tickerid, "D", [dailyDonchian(conversionPeriods), dailyDonchian(basePeriods), (dailyDonchian(conversionPeriods) + dailyDonchian(basePeriods)) / 2, dailyDonchian(laggingSpan2Periods)], lookahead = barmerge.lookahead_off)
 
 // Daily cloud at current position
 cloudTopDNow = math.max(dSpanA[displacement - 1], dSpanB[displacement - 1])
