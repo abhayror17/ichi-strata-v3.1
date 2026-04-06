@@ -23,8 +23,8 @@ plot(leadLine1 < leadLine2 ? leadLine1 : leadLine2, offset = displacement - 1, t
 fill(p1, p2, title = "Cloud Fill", color = leadLine1 > leadLine2 ? color.rgb(67, 160, 71, 90) : color.rgb(244, 67, 54, 90))
 
 // Cloud Top/Bottom for scanner analysis
-cloudTop = leadLine1 > leadLine2 ? leadLine1 : leadLine2
-cloudBottom = leadLine1 < leadLine2 ? leadLine1 : leadLine2
+cloudTop = math.max(leadLine1, leadLine2)
+cloudBottom = math.min(leadLine1, leadLine2)
 
 // ============================================
 // PIVOT POINTS (Official Code)
@@ -188,10 +188,10 @@ if (barstate.islastconfirmedhistory and drawnGraphics.columns() == 0)
 // SCANNER - Multi-TF Analysis
 // ============================================
 
-// Daily Ichimoku for multi-TF
-[conversionLineD, baseLineD, leadLine1D, leadLine2D] = request.security(syminfo.tickerid, "D", [conversionLine, baseLine, leadLine1, leadLine2], lookahead=barmerge.lookahead_on)
-cloudTopD = leadLine1D > leadLine2D ? leadLine1D : leadLine2D
-cloudBottomD = leadLine1D < leadLine2D ? leadLine2D : leadLine1D
+// Daily Ichimoku for multi-TF (calculate fresh on daily data)
+[conversionLineD, baseLineD, leadLine1D, leadLine2D] = request.security(syminfo.tickerid, "D", [donchian(conversionPeriods), donchian(basePeriods), math.avg(donchian(conversionPeriods), donchian(basePeriods)), donchian(laggingSpan2Periods)], lookahead=barmerge.lookahead_on)
+cloudTopD = math.max(leadLine1D, leadLine2D)
+cloudBottomD = math.min(leadLine1D, leadLine2D)
 
 // Daily Pivot
 dailyPivots = request.security(syminfo.tickerid, "D", ta.pivot_point_levels(pivotTypeInput, timeframe.change("D")), lookahead=barmerge.lookahead_on)
