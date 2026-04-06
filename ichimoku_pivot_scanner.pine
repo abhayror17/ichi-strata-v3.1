@@ -116,10 +116,12 @@ tfSellersMarket = tfTenkanBelowCloud and tfKijunBelowCloud and tfChikouBelowClou
 // ============================================
 
 // BUY Signal: Daily is Buyers Market + Current TF is Buyers Market
-buySignal = dailyBuyersMarket and tfBuyersMarket and not buySignal[1]
+var bool buySignal = false
+buySignal := dailyBuyersMarket and tfBuyersMarket and not buySignal[1]
 
 // SELL Signal: Daily is Sellers Market + Current TF is Sellers Market
-sellSignal = dailySellersMarket and tfSellersMarket and not sellSignal[1]
+var bool sellSignal = false
+sellSignal := dailySellersMarket and tfSellersMarket and not sellSignal[1]
 
 // ============================================
 // PLOTTING - ICHIMOKU (Official Style)
@@ -259,5 +261,5 @@ alertcondition(alertOnSell and sellSignal, "Sell Signal", "Ichimoku + Pivot SELL
 // ============================================
 // BACKGROUND COLOR INDICATOR
 // ============================================
-bgcolor(dailyBuyersMarket and tfBuyersMarket ? color.new(color.green, 90) : 
-        dailySellersMarket and tfSellersMarket ? color.new(color.red, 90) : na)
+bgColor = dailyBuyersMarket and tfBuyersMarket ? color.new(color.green, 90) : dailySellersMarket and tfSellersMarket ? color.new(color.red, 90) : na
+bgcolor(bgColor)
