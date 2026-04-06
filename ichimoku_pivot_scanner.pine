@@ -25,23 +25,23 @@ cloudBottomNow = math.min(spanA[displacement - 1], spanB[displacement - 1])
 chikou = close[displacement]
 
 // ============================================
-// DAILY TF - ALL CALCULATED INSIDE SECURITY
+// DAILY TF - PROPER MULTI-TF HANDLING
 // ============================================
-// Get daily OHLC first
-[dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", [close, high, low], lookahead = barmerge.lookahead_off)
+// Calculate daily Ichimoku with cloud displacement handled INSIDE security
+// This ensures proper daily bar indexing regardless of current TF
 
-// Get daily Ichimoku - use tuple with inline donchian calculations
-dTenkan = request.security(syminfo.tickerid, "D", (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2, lookahead = barmerge.lookahead_off)
-dKijun = request.security(syminfo.tickerid, "D", (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2, lookahead = barmerge.lookahead_off)
-dSpanA = request.security(syminfo.tickerid, "D", ((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2, lookahead = barmerge.lookahead_off)
-dSpanB = request.security(syminfo.tickerid, "D", (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2, lookahead = barmerge.lookahead_off)
+dailyIchimoku() =>
+    _tenkan = (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2
+    _kijun = (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2
+    _spanA = (_tenkan + _kijun) / 2
+    _spanB = (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2
+    // Cloud at current position (look back displacement bars)
+    _cloudTop = math.max(_spanA[displacement - 1], _spanB[displacement - 1])
+    _cloudBottom = math.min(_spanA[displacement - 1], _spanB[displacement - 1])
+    _chikou = close[displacement]
+    [_tenkan, _kijun, _spanA, _spanB, _cloudTop, _cloudBottom, _chikou, close, high, low]
 
-// Daily cloud at current position
-cloudTopDNow = math.max(dSpanA[displacement - 1], dSpanB[displacement - 1])
-cloudBottomDNow = math.min(dSpanA[displacement - 1], dSpanB[displacement - 1])
-
-// Daily Chikou
-chikouD = dClose[displacement]
+[dTenkan, dKijun, dSpanA, dSpanB, cloudTopDNow, cloudBottomDNow, chikouD, dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", dailyIchimoku(), lookahead = barmerge.lookahead_off)
 
 // Daily Pivot (from yesterday's HLC)
 pivotD = (dHigh[1] + dLow[1] + dClose[1]) / 3
