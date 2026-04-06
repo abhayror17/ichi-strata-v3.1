@@ -1,0 +1,287 @@
+//@version=5
+indicator("Ichimoku + Pivot Points Scanner [Multi-TF]", overlay=true, max_labels_count=500)
+
+// ============================================
+// INPUTS
+// ============================================
+grp_ichimoku = "Ichimoku Settings"
+conversionPeriods = input.int(9, "Conversion Line Length (Tenkan)", minval=1, group=grp_ichimoku)
+basePeriods = input.int(26, "Base Line Length (Kijun)", minval=1, group=grp_ichimoku)
+laggingPeriods = input.int(26, "Lagging Span Length (Chikou)", minval=1, group=ichimoku)
+displacement = input.int(26, "Displacement (Cloud Shift)", minval=1, group=grp_ichimoku)
+
+grp_pivot = "Pivot Point Settings"
+pivotType = input.string("Classic", "Pivot Type", options=["Classic", "Fibonacci", "Woodie", "Camarilla"], group=grp_pivot)
+
+grp_display = "Display Settings"
+showLabels = input.bool(true, "Show Signal Labels", group=grp_display)
+showTable = input.bool(true, "Show Info Table", group=grp_display)
+showCloud = input.bool(true, "Show Ichimoku Cloud", group=grp_display)
+
+grp_alerts = "Alert Settings"
+alertOnBuy = input.bool(true, "Buy Signal Alerts", group=grp_alerts)
+alertOnSell = input.bool(true, "Sell Signal Alerts", group=grp_alerts)
+
+// ============================================
+// ICHIMOKU CALCULATION FUNCTION
+// ============================================
+ichimoku(src, convLen, baseLen, lagLen, disp) =>
+    // Conversion Line (Tenkan-sen) - Blue - 9 period
+    conversionLine = ta.highest(src, convLen) / 2 + ta.lowest(src, convLen) / 2
+    
+    // Base Line (Kijun-sen) - Red - 26 period (SL Line)
+    baseLine = ta.highest(src, baseLen) / 2 + ta.lowest(src, baseLen) / 2
+    
+    // Leading Span A (Senkou Span A) - Upper Cloud
+    leadingSpanA = (conversionLine + baseLine) / 2
+    
+    // Leading Span B (Senkou Span B) - Lower Cloud
+    leadingSpanB = ta.highest(src, baseLen * 2) / 2 + ta.lowest(src, baseLen * 2) / 2
+    
+    // Lagging Span (Chikou Span) - Price shifted back 26 candles
+    laggingSpan = src[disp]
+    
+    [conversionLine, baseLine, leadingSpanA, leadingSpanB, laggingSpan]
+
+// ============================================
+// PIVOT POINT CALCULATION FUNCTION
+// ============================================
+getPivots(high_, low_, close_, pType) =>
+    // Daily levels
+    prevHigh = request.security(syminfo.tickerid, "D", high_[1], lookahead=barmerge.lookahead_on)
+    prevLow = request.security(syminfo.tickerid, "D", low_[1], lookahead=barmerge.lookahead_on)
+    prevClose = request.security(syminfo.tickerid, "D", close_[1], lookahead=barmerge.lookahead_on)
+    
+    float pivot = na
+    float r1 = na, float r2 = na, float r3 = na
+    float s1 = na, float s2 = na, float s3 = na
+    
+    if pType == "Classic"
+        pivot := (prevHigh + prevLow + prevClose) / 3
+        r1 := pivot * 2 - prevLow
+        s1 := pivot * 2 - prevHigh
+        r2 := pivot + (prevHigh - prevLow)
+        s2 := pivot - (prevHigh - prevLow)
+        r3 := prevHigh + 2 * (pivot - prevLow)
+        s3 := prevLow - 2 * (prevHigh - pivot)
+    
+    else if pType == "Fibonacci"
+        pivot := (prevHigh + prevLow + prevClose) / 3
+        range_ = prevHigh - prevLow
+        r1 := pivot + range_ * 0.382
+        s1 := pivot - range_ * 0.382
+        r2 := pivot + range_ * 0.618
+        s2 := pivot - range_ * 0.618
+        r3 := pivot + range_
+        s3 := pivot - range_
+    
+    else if pType == "Woodie"
+        pivot := (prevHigh + prevLow + 2 * prevClose) / 4
+        r1 := 2 * pivot - prevLow
+        s1 := 2 * pivot - prevHigh
+        r2 := pivot + prevHigh - prevLow
+        s2 := pivot - prevHigh + prevLow
+        r3 := prevHigh + 2 * (pivot - prevLow)
+        s3 := prevLow - 2 * (prevHigh - pivot)
+    
+    else // Camarilla
+        pivot := (prevHigh + prevLow + prevClose) / 3
+        range_ = prevHigh - prevLow
+        r1 := prevClose + range_ * 1.1 / 12
+        s1 := prevClose - range_ * 1.1 / 12
+        r2 := prevClose + range_ * 1.1 / 6
+        s2 := prevClose - range_ * 1.1 / 6
+        r3 := prevClose + range_ * 1.1 / 4
+        s3 := prevClose - range_ * 1.1 / 4
+    
+    [pivot, r1, r2, r3, s1, s2, s3]
+
+// ============================================
+// CURRENT TIMEFRAME ICHIMOKU
+// ============================================
+[tenkan, kijun, spanA, spanB, chikou] = ichimoku(close, conversionPeriods, basePeriods, laggingPeriods, displacement)
+
+// Cloud lines (displaced forward)
+cloudTop = math.max(spanA[displacement], spanB[displacement])
+cloudBottom = math.min(spanA[displacement], spanB[displacement])
+
+// ============================================
+// DAILY TIMEFRAME DATA
+// ============================================
+// Daily Ichimoku
+[tenkanD, kijunD, spanAD, spanBD, chikouD] = request.security(syminfo.tickerid, "D", ichimoku(close, conversionPeriods, basePeriods, laggingPeriods, displacement), lookahead=barmerge.lookahead_on)
+
+// Daily Cloud (current position, not displaced)
+cloudTopD = math.max(spanAD[displacement], spanBD[displacement])
+cloudBottomD = math.min(spanAD[displacement], spanBD[displacement])
+
+// Daily Pivot
+[pivotD, r1D, r2D, r3D, s1D, s2D, s3D] = getPivots(high, low, close, pivotType)
+
+// ============================================
+// CURRENT TIMEFRAME (15M) PIVOT
+// ============================================
+[pivot15, r1_15, r2_15, r3_15, s1_15, s2_15, s3_15] = getPivots(high, low, close, pivotType)
+
+// ============================================
+// MARKET CONDITION ANALYSIS
+// ============================================
+
+// DAILY MARKET CONDITIONS
+// Check if all 3 lines (Tenkan, Kijun, Chikou) are above/below cloud
+dailyTenkanAboveCloud = tenkanD > cloudTopD
+dailyTenkanBelowCloud = tenkanD < cloudBottomD
+dailyKijunAboveCloud = kijunD > cloudTopD
+dailyKijunBelowCloud = kijunD < cloudBottomD
+dailyChikouAboveCloud = chikouD > cloudTopD
+dailyChikouBelowCloud = chikouD < cloudBottomD
+dailyPriceAbovePivot = close > pivotD
+dailyPriceBelowPivot = close < pivotD
+
+// Daily Market Direction
+// Buyers Market: All 3 lines above cloud AND price above pivot
+dailyBuyersMarket = dailyTenkanAboveCloud and dailyKijunAboveCloud and dailyChikouAboveCloud and dailyPriceAbovePivot
+// Sellers Market: All 3 lines below cloud AND price below pivot
+dailySellersMarket = dailyTenkanBelowCloud and dailyKijunBelowCloud and dailyChikouBelowCloud and dailyPriceBelowPivot
+
+// 15 MIN / CURRENT TF MARKET CONDITIONS
+tfTenkanAboveCloud = tenkan > cloudTop
+tfTenkanBelowCloud = tenkan < cloudBottom
+tfKijunAboveCloud = kijun > cloudTop
+tfKijunBelowCloud = kijun < cloudBottom
+tfChikouAboveCloud = chikou > cloudTop
+tfChikouBelowCloud = chikou < cloudBottom
+tfPriceAbovePivot = close > pivot15
+tfPriceBelowPivot = close < pivot15
+
+// Current TF Market Direction
+tfBuyersMarket = tfTenkanAboveCloud and tfKijunAboveCloud and tfChikouAboveCloud and tfPriceAbovePivot
+tfSellersMarket = tfTenkanBelowCloud and tfKijunBelowCloud and tfChikouBelowCloud and tfPriceBelowPivot
+
+// ============================================
+// SIGNAL GENERATION
+// ============================================
+
+// BUY Signal: Daily is Buyers Market + Current TF is Buyers Market
+buySignal = dailyBuyersMarket and tfBuyersMarket and not buySignal[1]
+
+// SELL Signal: Daily is Sellers Market + Current TF is Sellers Market
+sellSignal = dailySellersMarket and tfSellersMarket and not sellSignal[1]
+
+// ============================================
+// STOP LOSS TRACKING (Kijun-sen / Base Line)
+// ============================================
+// SL is the Red Base Line (Kijun-sen) - 26 period
+slBuy = kijun
+slSell = kijun
+
+// ============================================
+// PLOTTING
+// ============================================
+
+// Ichimoku Cloud
+plot(showCloud ? spanA : na, "Span A (Cloud Top)", color=color.new(color.green, 70), offset=displacement)
+plot(showCloud ? spanB : na, "Span B (Cloud Bottom)", color=color.new(color.red, 70), offset=displacement)
+p_cloudTop = plot(showCloud ? cloudTop : na, "Cloud Top", color=color.new(color.gray, 80))
+p_cloudBottom = plot(showCloud ? cloudBottom : na, "Cloud Bottom", color=color.new(color.gray, 80))
+fill(p_cloudTop, p_cloudBottom, color=close > cloudTop ? color.new(color.green, 85) : close < cloudBottom ? color.new(color.red, 85) : color.new(color.gray, 85))
+
+// Ichimoku Lines
+plot(tenkan, "Tenkan-sen (Conversion)", color=color.blue, linewidth=2)
+plot(kijun, "Kijun-sen (Base/SL)", color=color.red, linewidth=2)
+plot(chikou, "Chikou Span (Lagging)", color=color.new(color.purple, 30), linewidth=1, offset=-displacement)
+
+// Pivot Points
+plot(pivot15, "Pivot (15M)", color=color.yellow, linewidth=2)
+plot(r1_15, "R1", color=color.new(color.red, 50), linewidth=1)
+plot(s1_15, "S1", color=color.new(color.green, 50), linewidth=1)
+plot(r2_15, "R2", color=color.new(color.red, 70), linewidth=1)
+plot(s2_15, "S2", color=color.new(color.green, 70), linewidth=1)
+
+// ============================================
+// SIGNAL LABELS
+// ============================================
+if showLabels and buySignal
+    label.new(bar_index, low, "BUY\nSL: " + str.tostring(kijun, "#.####"), 
+              style=label.style_label_up, 
+              color=color.green, 
+              textcolor=color.white, 
+              size=size.normal)
+
+if showLabels and sellSignal
+    label.new(bar_index, high, "SELL\nSL: " + str.tostring(kijun, "#.####"), 
+              style=label.style_label_down, 
+              color=color.red, 
+              textcolor=color.white, 
+              size=size.normal)
+
+// ============================================
+// INFO TABLE
+// ============================================
+var table infoTable = table.new(position.top_right, 3, 10, bgcolor=color.new(color.black, 80), border_width=1)
+
+if showTable and barstate.islast
+    // Headers
+    table.cell(infoTable, 0, 0, "Component", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 0, "Daily", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 2, 0, "Current TF", text_color=color.white, text_size=size.small)
+    
+    // Tenkan vs Cloud
+    table.cell(infoTable, 0, 1, "Tenkan vs Cloud", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 1, dailyTenkanAboveCloud ? "Above" : dailyTenkanBelowCloud ? "Below" : "Inside", 
+               text_color=dailyTenkanAboveCloud ? color.green : dailyTenkanBelowCloud ? color.red : color.gray, text_size=size.tiny)
+    table.cell(infoTable, 2, 1, tfTenkanAboveCloud ? "Above" : tfTenkanBelowCloud ? "Below" : "Inside", 
+               text_color=tfTenkanAboveCloud ? color.green : tfTenkanBelowCloud ? color.red : color.gray, text_size=size.tiny)
+    
+    // Kijun vs Cloud
+    table.cell(infoTable, 0, 2, "Kijun vs Cloud", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 2, dailyKijunAboveCloud ? "Above" : dailyKijunBelowCloud ? "Below" : "Inside", 
+               text_color=dailyKijunAboveCloud ? color.green : dailyKijunBelowCloud ? color.red : color.gray, text_size=size.tiny)
+    table.cell(infoTable, 2, 2, tfKijunAboveCloud ? "Above" : tfKijunBelowCloud ? "Below" : "Inside", 
+               text_color=tfKijunAboveCloud ? color.green : tfKijunBelowCloud ? color.red : color.gray, text_size=size.tiny)
+    
+    // Chikou vs Cloud
+    table.cell(infoTable, 0, 3, "Chikou vs Cloud", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 3, dailyChikouAboveCloud ? "Above" : dailyChikouBelowCloud ? "Below" : "Inside", 
+               text_color=dailyChikouAboveCloud ? color.green : dailyChikouBelowCloud ? color.red : color.gray, text_size=size.tiny)
+    table.cell(infoTable, 2, 3, tfChikouAboveCloud ? "Above" : tfChikouBelowCloud ? "Below" : "Inside", 
+               text_color=tfChikouAboveCloud ? color.green : tfChikouBelowCloud ? color.red : color.gray, text_size=size.tiny)
+    
+    // Price vs Pivot
+    table.cell(infoTable, 0, 4, "Price vs Pivot", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 4, dailyPriceAbovePivot ? "Above" : "Below", 
+               text_color=dailyPriceAbovePivot ? color.green : color.red, text_size=size.tiny)
+    table.cell(infoTable, 2, 4, tfPriceAbovePivot ? "Above" : "Below", 
+               text_color=tfPriceAbovePivot ? color.green : color.red, text_size=size.tiny)
+    
+    // Market Direction
+    table.cell(infoTable, 0, 5, "Market Direction", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 5, dailyBuyersMarket ? "BUYERS" : dailySellersMarket ? "SELLERS" : "NEUTRAL", 
+               text_color=dailyBuyersMarket ? color.green : dailySellersMarket ? color.red : color.gray, text_size=size.tiny)
+    table.cell(infoTable, 2, 5, tfBuyersMarket ? "BUYERS" : tfSellersMarket ? "SELLERS" : "NEUTRAL", 
+               text_color=tfBuyersMarket ? color.green : tfSellersMarket ? color.red : color.gray, text_size=size.tiny)
+    
+    // Signal Status
+    table.cell(infoTable, 0, 6, "Signal Status", text_color=color.white, text_size=size.tiny)
+    table.merge_cells(infoTable, 1, 6, 2, 6)
+    table.cell(infoTable, 1, 6, dailyBuyersMarket and tfBuyersMarket ? "✓ BUY SIGNAL" : 
+                                   dailySellersMarket and tfSellersMarket ? "✓ SELL SIGNAL" : "WAIT", 
+               text_color=dailyBuyersMarket and tfBuyersMarket ? color.green : 
+                          dailySellersMarket and tfSellersMarket ? color.red : color.gray, text_size=size.small)
+    
+    // Current SL
+    table.cell(infoTable, 0, 7, "SL (Kijun)", text_color=color.white, text_size=size.tiny)
+    table.merge_cells(infoTable, 1, 7, 2, 7)
+    table.cell(infoTable, 1, 7, str.tostring(kijun, "#.####"), text_color=color.orange, text_size=size.tiny)
+
+// ============================================
+// ALERTS
+// ============================================
+alertcondition(alertOnBuy and buySignal, "Buy Signal", "Ichimoku + Pivot BUY Signal! Daily & 15M both in Buyers Market.")
+alertcondition(alertOnSell and sellSignal, "Sell Signal", "Ichimoku + Pivot SELL Signal! Daily & 15M both in Sellers Market.")
+
+// ============================================
+// BACKGROUND COLOR INDICATOR
+// ============================================
+bgcolor(dailyBuyersMarket and tfBuyersMarket ? color.new(color.green, 90) : 
+        dailySellersMarket and tfSellersMarket ? color.new(color.red, 90) : na)
