@@ -1,4 +1,4 @@
-//@version=5
+//@version=6
 indicator("ichi-strata v4.0 (Clean & Stable)", overlay=true, max_labels_count=500)
 
 // ============================================
@@ -19,59 +19,50 @@ kijun = donchian(basePeriods)
 spanA = (tenkan + kijun) / 2
 spanB = donchian(laggingSpan2Periods)
 
-// Cloud visible now was projected from displacement bars ago
-cloudTopNow = math.max(spanA[displacement], spanB[displacement])
-cloudBottomNow = math.min(spanA[displacement], spanB[displacement])
+cloudTopNow = math.max(spanA[displacement - 1], spanB[displacement - 1])
+cloudBottomNow = math.min(spanA[displacement - 1], spanB[displacement - 1])
 chikou = close[displacement]
 
 // ============================================
-// DAILY TF ICHIMOKU - INLINE EXPRESSIONS ONLY
+// DAILY TF ICHIMOKU
 // ============================================
-// Get daily OHLC
-[dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", [close, high, low], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+dailyIchimoku() =>
+    _tenkan = (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2
+    _kijun = (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2
+    _spanA = (_tenkan + _kijun) / 2
+    _spanB = (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2
+    // Current cloud (for Tenkan/Kijun comparison)
+    _cloudTop = math.max(_spanA[displacement - 1], _spanB[displacement - 1])
+    _cloudBottom = math.min(_spanA[displacement - 1], _spanB[displacement - 1])
+    // Historical cloud (for Chikou comparison - displacement*2 bars ago)
+    _cloudTopChikou = math.max(_spanA[displacement * 2 - 1], _spanB[displacement * 2 - 1])
+    _cloudBottomChikou = math.min(_spanA[displacement * 2 - 1], _spanB[displacement * 2 - 1])
+    _chikou = close[displacement]
+    [_tenkan, _kijun, _spanA, _spanB, _cloudTop, _cloudBottom, _cloudTopChikou, _cloudBottomChikou, _chikou, close, high, low]
 
-// Daily Tenkan, Kijun, SpanA, SpanB calculated on daily data
-dTenkan = request.security(syminfo.tickerid, "D", (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-dKijun = request.security(syminfo.tickerid, "D", (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-dSpanA = request.security(syminfo.tickerid, "D", ((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-dSpanB = request.security(syminfo.tickerid, "D", (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-
-// Daily cloud at CURRENT position (for Tenkan/Kijun comparison)
-// Cloud visible now was projected from displacement bars ago
-[dCloudTop, dCloudBottom] = request.security(syminfo.tickerid, "D", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-
-// Daily cloud at HISTORICAL position for Chikou comparison (displacement*2 bars ago)
-// Chikou shows price from displacement bars ago, compare to cloud at that time
-[dCloudTopChikou, dCloudBottomChikou] = request.security(syminfo.tickerid, "D", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-
-// Daily Chikou - price from displacement bars ago
-chikouD = request.security(syminfo.tickerid, "D", close[displacement], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+[dTenkan, dKijun, dSpanA, dSpanB, cloudTopD, cloudBottomD, cloudTopDChikou, cloudBottomDChikou, chikouD, dClose, dHigh, dLow] = request.security(syminfo.tickerid, "D", dailyIchimoku(), lookahead = barmerge.lookahead_off)
 
 // Daily Pivot
 pivotD = (dHigh[1] + dLow[1] + dClose[1]) / 3
 
 // ============================================
-// 15 MIN TF ICHIMOKU - INLINE EXPRESSIONS ONLY
+// 15 MIN TF ICHIMOKU
 // ============================================
-// Get 15M close
-close15 = request.security(syminfo.tickerid, "15", close, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+tf15Ichimoku() =>
+    _tenkan = (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2
+    _kijun = (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2
+    _spanA = (_tenkan + _kijun) / 2
+    _spanB = (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2
+    // Current cloud (for Tenkan/Kijun comparison)
+    _cloudTop = math.max(_spanA[displacement - 1], _spanB[displacement - 1])
+    _cloudBottom = math.min(_spanA[displacement - 1], _spanB[displacement - 1])
+    // Historical cloud (for Chikou comparison - displacement*2 bars ago)
+    _cloudTopChikou = math.max(_spanA[displacement * 2 - 1], _spanB[displacement * 2 - 1])
+    _cloudBottomChikou = math.min(_spanA[displacement * 2 - 1], _spanB[displacement * 2 - 1])
+    _chikou = close[displacement]
+    [_tenkan, _kijun, _spanA, _spanB, _cloudTop, _cloudBottom, _cloudTopChikou, _cloudBottomChikou, _chikou, close]
 
-// 15M Tenkan, Kijun, SpanA, SpanB calculated on 15M data
-tf15Tenkan = request.security(syminfo.tickerid, "15", (ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-tf15Kijun = request.security(syminfo.tickerid, "15", (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-tf15SpanA = request.security(syminfo.tickerid, "15", ((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-tf15SpanB = request.security(syminfo.tickerid, "15", (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2, lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-
-// 15M cloud at CURRENT position (for Tenkan/Kijun comparison)
-// Cloud visible now was projected from displacement bars ago
-[cloudTop15, cloudBottom15] = request.security(syminfo.tickerid, "15", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-
-// 15M cloud at HISTORICAL position for Chikou comparison (displacement*2 bars ago)
-// Chikou shows price from displacement bars ago, compare to cloud at that time
-[cloudTop15Chikou, cloudBottom15Chikou] = request.security(syminfo.tickerid, "15", [math.max(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2]), math.min(((ta.highest(conversionPeriods) + ta.lowest(conversionPeriods)) / 2 + (ta.highest(basePeriods) + ta.lowest(basePeriods)) / 2) / 2[displacement * 2], (ta.highest(laggingSpan2Periods) + ta.lowest(laggingSpan2Periods)) / 2[displacement * 2])], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
-
-// 15M Chikou - price from displacement bars ago
-chikou15 = request.security(syminfo.tickerid, "15", close[displacement], lookahead = barmerge.lookahead_off, gaps = barmerge.gaps_off)
+[tf15Tenkan, tf15Kijun, tf15SpanA, tf15SpanB, cloudTop15, cloudBottom15, cloudTop15Chikou, cloudBottom15Chikou, chikou15, close15] = request.security(syminfo.tickerid, "15", tf15Ichimoku(), lookahead = barmerge.lookahead_off)
 
 // 15M Pivot (using daily pivot)
 pivot15 = pivotD
@@ -79,14 +70,14 @@ pivot15 = pivotD
 // ============================================
 // DAILY CONDITIONS
 // ============================================
-dTenkanAbove = dTenkan > dCloudTop
-dKijunAbove  = dKijun > dCloudTop
-dChikouAbove = chikouD > dCloudTopChikou     // Chikou vs cloud at historical position
+dTenkanAbove = dTenkan > cloudTopD
+dKijunAbove  = dKijun > cloudTopD
+dChikouAbove = chikouD > cloudTopDChikou     // Compare to HISTORICAL cloud
 dAbovePivot  = dClose > pivotD
 
-dTenkanBelow = dTenkan < dCloudBottom
-dKijunBelow  = dKijun < dCloudBottom
-dChikouBelow = chikouD < dCloudBottomChikou  // Chikou vs cloud at historical position
+dTenkanBelow = dTenkan < cloudBottomD
+dKijunBelow  = dKijun < cloudBottomD
+dChikouBelow = chikouD < cloudBottomDChikou  // Compare to HISTORICAL cloud
 dBelowPivot  = dClose < pivotD
 
 dBull = dTenkanAbove and dKijunAbove and dChikouAbove and dAbovePivot
@@ -97,12 +88,12 @@ dBear = dTenkanBelow and dKijunBelow and dChikouBelow and dBelowPivot
 // ============================================
 tf15TenkanAbove = tf15Tenkan > cloudTop15
 tf15KijunAbove  = tf15Kijun > cloudTop15
-tf15ChikouAbove = chikou15 > cloudTop15Chikou     // Chikou vs cloud at historical position
+tf15ChikouAbove = chikou15 > cloudTop15Chikou     // Compare to HISTORICAL cloud
 tf15AbovePivot  = close15 > pivot15
 
 tf15TenkanBelow = tf15Tenkan < cloudBottom15
 tf15KijunBelow  = tf15Kijun < cloudBottom15
-tf15ChikouBelow = chikou15 < cloudBottom15Chikou  // Chikou vs cloud at historical position
+tf15ChikouBelow = chikou15 < cloudBottom15Chikou  // Compare to HISTORICAL cloud
 tf15BelowPivot  = close15 < pivot15
 
 tf15Bull = tf15TenkanAbove and tf15KijunAbove and tf15ChikouAbove and tf15AbovePivot
