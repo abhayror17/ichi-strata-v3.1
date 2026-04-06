@@ -7,134 +7,86 @@ indicator("Ichimoku + Pivot Points Scanner [Multi-TF]", overlay=true, max_labels
 grp_ichimoku = "Ichimoku Settings"
 conversionPeriods = input.int(9, "Conversion Line Length (Tenkan)", minval=1, group=grp_ichimoku)
 basePeriods = input.int(26, "Base Line Length (Kijun)", minval=1, group=grp_ichimoku)
-laggingPeriods = input.int(26, "Lagging Span Length (Chikou)", minval=1, group=grp_ichimoku)
-displacement = input.int(26, "Displacement (Cloud Shift)", minval=1, group=grp_ichimoku)
+laggingSpan2Periods = input.int(52, "Leading Span B Length", minval=1, group=grp_ichimoku)
+displacement = input.int(26, "Displacement", minval=1, group=grp_ichimoku)
 
 grp_pivot = "Pivot Point Settings"
-pivotType = input.string("Classic", "Pivot Type", options=["Classic", "Fibonacci", "Woodie", "Camarilla"], group=grp_pivot)
+pivotType = input.string("Traditional", "Pivot Type", options=["Traditional", "Fibonacci", "Woodie", "Classic", "DM", "Camarilla"], group=grp_pivot)
 
 grp_display = "Display Settings"
 showLabels = input.bool(true, "Show Signal Labels", group=grp_display)
 showTable = input.bool(true, "Show Info Table", group=grp_display)
 showCloud = input.bool(true, "Show Ichimoku Cloud", group=grp_display)
+showPivots = input.bool(true, "Show Pivot Lines", group=grp_display)
 
 grp_alerts = "Alert Settings"
 alertOnBuy = input.bool(true, "Buy Signal Alerts", group=grp_alerts)
 alertOnSell = input.bool(true, "Sell Signal Alerts", group=grp_alerts)
 
 // ============================================
-// ICHIMOKU CALCULATION FUNCTION
+// ICHIMOKU CALCULATION (Official Method)
 // ============================================
-ichimoku(src, convLen, baseLen, lagLen, disp) =>
-    // Conversion Line (Tenkan-sen) - Blue - 9 period
-    conversionLine = ta.highest(src, convLen) / 2 + ta.lowest(src, convLen) / 2
-    
-    // Base Line (Kijun-sen) - Red - 26 period (SL Line)
-    baseLine = ta.highest(src, baseLen) / 2 + ta.lowest(src, baseLen) / 2
-    
-    // Leading Span A (Senkou Span A) - Upper Cloud
-    leadingSpanA = (conversionLine + baseLine) / 2
-    
-    // Leading Span B (Senkou Span B) - Lower Cloud
-    leadingSpanB = ta.highest(src, baseLen * 2) / 2 + ta.lowest(src, baseLen * 2) / 2
-    
-    // Lagging Span (Chikou Span) - Price shifted back 26 candles
-    laggingSpan = src[disp]
-    
-    [conversionLine, baseLine, leadingSpanA, leadingSpanB, laggingSpan]
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+
+// Current Timeframe Ichimoku
+conversionLine = donchian(conversionPeriods)      // Tenkan-sen (Blue)
+baseLine = donchian(basePeriods)                  // Kijun-sen (Red) - SL Line
+leadLine1 = math.avg(conversionLine, baseLine)    // Senkou Span A
+leadLine2 = donchian(laggingSpan2Periods)         // Senkou Span B
+laggingSpan = close                               // Chikou Span (plotted with offset)
+
+// Cloud Top and Bottom (for current bar, not displaced)
+cloudTop = math.max(leadLine1, leadLine2)
+cloudBottom = math.min(leadLine1, leadLine2)
 
 // ============================================
-// PIVOT POINT CALCULATION FUNCTION
+// DAILY ICHIMOKU
 // ============================================
-getPivots(high_, low_, close_, pType) =>
-    // Daily levels
-    prevHigh = request.security(syminfo.tickerid, "D", high_[1], lookahead=barmerge.lookahead_on)
-    prevLow = request.security(syminfo.tickerid, "D", low_[1], lookahead=barmerge.lookahead_on)
-    prevClose = request.security(syminfo.tickerid, "D", close_[1], lookahead=barmerge.lookahead_on)
-    
-    float pivot = na
-    float r1 = na, float r2 = na, float r3 = na
-    float s1 = na, float s2 = na, float s3 = na
-    
-    if pType == "Classic"
-        pivot := (prevHigh + prevLow + prevClose) / 3
-        r1 := pivot * 2 - prevLow
-        s1 := pivot * 2 - prevHigh
-        r2 := pivot + (prevHigh - prevLow)
-        s2 := pivot - (prevHigh - prevLow)
-        r3 := prevHigh + 2 * (pivot - prevLow)
-        s3 := prevLow - 2 * (prevHigh - pivot)
-    
-    else if pType == "Fibonacci"
-        pivot := (prevHigh + prevLow + prevClose) / 3
-        range_ = prevHigh - prevLow
-        r1 := pivot + range_ * 0.382
-        s1 := pivot - range_ * 0.382
-        r2 := pivot + range_ * 0.618
-        s2 := pivot - range_ * 0.618
-        r3 := pivot + range_
-        s3 := pivot - range_
-    
-    else if pType == "Woodie"
-        pivot := (prevHigh + prevLow + 2 * prevClose) / 4
-        r1 := 2 * pivot - prevLow
-        s1 := 2 * pivot - prevHigh
-        r2 := pivot + prevHigh - prevLow
-        s2 := pivot - prevHigh + prevLow
-        r3 := prevHigh + 2 * (pivot - prevLow)
-        s3 := prevLow - 2 * (prevHigh - pivot)
-    
-    else // Camarilla
-        pivot := (prevHigh + prevLow + prevClose) / 3
-        range_ = prevHigh - prevLow
-        r1 := prevClose + range_ * 1.1 / 12
-        s1 := prevClose - range_ * 1.1 / 12
-        r2 := prevClose + range_ * 1.1 / 6
-        s2 := prevClose - range_ * 1.1 / 6
-        r3 := prevClose + range_ * 1.1 / 4
-        s3 := prevClose - range_ * 1.1 / 4
-    
-    [pivot, r1, r2, r3, s1, s2, s3]
+[conversionLineD, baseLineD, leadLine1D, leadLine2D] = request.security(syminfo.tickerid, "D", [donchian(conversionPeriods), donchian(basePeriods), math.avg(donchian(conversionPeriods), donchian(basePeriods)), donchian(laggingSpan2Periods)], lookahead=barmerge.lookahead_on)
+
+// Daily Cloud
+cloudTopD = math.max(leadLine1D, leadLine2D)
+cloudBottomD = math.min(leadLine1D, leadLine2D)
 
 // ============================================
-// CURRENT TIMEFRAME ICHIMOKU
+// PIVOT POINTS (Using Built-in Function)
 // ============================================
-[tenkan, kijun, spanA, spanB, chikou] = ichimoku(close, conversionPeriods, basePeriods, laggingPeriods, displacement)
+// Daily Pivot Change Condition
+dailyPivotChange = timeframe.change("D")
 
-// Cloud lines (displaced forward)
-cloudTop = math.max(spanA[displacement], spanB[displacement])
-cloudBottom = math.min(spanA[displacement], spanB[displacement])
+// Get Pivot Points for Daily
+dailyPivotsArray = ta.pivot_point_levels(pivotType, dailyPivotChange)
 
-// ============================================
-// DAILY TIMEFRAME DATA
-// ============================================
-// Daily Ichimoku
-[tenkanD, kijunD, spanAD, spanBD, chikouD] = request.security(syminfo.tickerid, "D", ichimoku(close, conversionPeriods, basePeriods, laggingPeriods, displacement), lookahead=barmerge.lookahead_on)
+// Extract pivot levels
+pivotD = array.get(dailyPivotsArray, 0)   // P
+r1D = array.get(dailyPivotsArray, 1)      // R1
+s1D = array.get(dailyPivotsArray, 2)      // S1
+r2D = array.get(dailyPivotsArray, 3)      // R2
+s2D = array.get(dailyPivotsArray, 4)      // S2
+r3D = array.get(dailyPivotsArray, 5)      // R3
+s3D = array.get(dailyPivotsArray, 6)      // S3
 
-// Daily Cloud (current position, not displaced)
-cloudTopD = math.max(spanAD[displacement], spanBD[displacement])
-cloudBottomD = math.min(spanAD[displacement], spanBD[displacement])
-
-// Daily Pivot
-[pivotD, r1D, r2D, r3D, s1D, s2D, s3D] = getPivots(high, low, close, pivotType)
-
-// ============================================
-// CURRENT TIMEFRAME (15M) PIVOT
-// ============================================
-[pivot15, r1_15, r2_15, r3_15, s1_15, s2_15, s3_15] = getPivots(high, low, close, pivotType)
+// Current Timeframe Pivot (for display)
+currentPivotChange = timeframe.change(timeframe.period)
+currentPivotsArray = ta.pivot_point_levels(pivotType, currentPivotChange)
+pivotCurrent = array.get(currentPivotsArray, 0)
+r1Current = array.get(currentPivotsArray, 1)
+s1Current = array.get(currentPivotsArray, 2)
+r2Current = array.get(currentPivotsArray, 3)
+s2Current = array.get(currentPivotsArray, 4)
 
 // ============================================
 // MARKET CONDITION ANALYSIS
 // ============================================
 
 // DAILY MARKET CONDITIONS
-// Check if all 3 lines (Tenkan, Kijun, Chikou) are above/below cloud
-dailyTenkanAboveCloud = tenkanD > cloudTopD
-dailyTenkanBelowCloud = tenkanD < cloudBottomD
-dailyKijunAboveCloud = kijunD > cloudTopD
-dailyKijunBelowCloud = kijunD < cloudBottomD
-dailyChikouAboveCloud = chikouD > cloudTopD
-dailyChikouBelowCloud = chikouD < cloudBottomD
+// Chikou Span is close, compared to cloud displaced back
+dailyChikouAboveCloud = close > cloudTopD
+dailyChikouBelowCloud = close < cloudBottomD
+dailyTenkanAboveCloud = conversionLineD > cloudTopD
+dailyTenkanBelowCloud = conversionLineD < cloudBottomD
+dailyKijunAboveCloud = baseLineD > cloudTopD
+dailyKijunBelowCloud = baseLineD < cloudBottomD
 dailyPriceAbovePivot = close > pivotD
 dailyPriceBelowPivot = close < pivotD
 
@@ -144,15 +96,16 @@ dailyBuyersMarket = dailyTenkanAboveCloud and dailyKijunAboveCloud and dailyChik
 // Sellers Market: All 3 lines below cloud AND price below pivot
 dailySellersMarket = dailyTenkanBelowCloud and dailyKijunBelowCloud and dailyChikouBelowCloud and dailyPriceBelowPivot
 
-// 15 MIN / CURRENT TF MARKET CONDITIONS
-tfTenkanAboveCloud = tenkan > cloudTop
-tfTenkanBelowCloud = tenkan < cloudBottom
-tfKijunAboveCloud = kijun > cloudTop
-tfKijunBelowCloud = kijun < cloudBottom
-tfChikouAboveCloud = chikou > cloudTop
-tfChikouBelowCloud = chikou < cloudBottom
-tfPriceAbovePivot = close > pivot15
-tfPriceBelowPivot = close < pivot15
+// CURRENT TF MARKET CONDITIONS
+// Chikou comparison - close relative to cloud displaced back by displacement
+tfChikouAboveCloud = close > cloudTop
+tfChikouBelowCloud = close < cloudBottom
+tfTenkanAboveCloud = conversionLine > cloudTop
+tfTenkanBelowCloud = conversionLine < cloudBottom
+tfKijunAboveCloud = baseLine > cloudTop
+tfKijunBelowCloud = baseLine < cloudBottom
+tfPriceAbovePivot = close > pivotCurrent
+tfPriceBelowPivot = close < pivotCurrent
 
 // Current TF Market Direction
 tfBuyersMarket = tfTenkanAboveCloud and tfKijunAboveCloud and tfChikouAboveCloud and tfPriceAbovePivot
@@ -169,47 +122,65 @@ buySignal = dailyBuyersMarket and tfBuyersMarket and not buySignal[1]
 sellSignal = dailySellersMarket and tfSellersMarket and not sellSignal[1]
 
 // ============================================
-// STOP LOSS TRACKING (Kijun-sen / Base Line)
+// PLOTTING - ICHIMOKU (Official Style)
 // ============================================
-// SL is the Red Base Line (Kijun-sen) - 26 period
-slBuy = kijun
-slSell = kijun
-
-// ============================================
-// PLOTTING
-// ============================================
-
-// Ichimoku Cloud
-plot(showCloud ? spanA : na, "Span A (Cloud Top)", color=color.new(color.green, 70), offset=displacement)
-plot(showCloud ? spanB : na, "Span B (Cloud Bottom)", color=color.new(color.red, 70), offset=displacement)
-p_cloudTop = plot(showCloud ? cloudTop : na, "Cloud Top", color=color.new(color.gray, 80))
-p_cloudBottom = plot(showCloud ? cloudBottom : na, "Cloud Bottom", color=color.new(color.gray, 80))
-fill(p_cloudTop, p_cloudBottom, color=close > cloudTop ? color.new(color.green, 85) : close < cloudBottom ? color.new(color.red, 85) : color.new(color.gray, 85))
 
 // Ichimoku Lines
-plot(tenkan, "Tenkan-sen (Conversion)", color=color.blue, linewidth=2)
-plot(kijun, "Kijun-sen (Base/SL)", color=color.red, linewidth=2)
-plot(chikou, "Chikou Span (Lagging)", color=color.new(color.purple, 30), linewidth=1, offset=-displacement)
+plot(conversionLine, color=#2962FF, title="Conversion Line (Tenkan)", linewidth=2)
+plot(baseLine, color=#B71C1C, title="Base Line (Kijun/SL)", linewidth=2)
+plot(laggingSpan, offset=-displacement + 1, color=#43A047, title="Lagging Span (Chikou)", linewidth=1)
 
-// Pivot Points
-plot(pivot15, "Pivot (15M)", color=color.yellow, linewidth=2)
-plot(r1_15, "R1", color=color.new(color.red, 50), linewidth=1)
-plot(s1_15, "S1", color=color.new(color.green, 50), linewidth=1)
-plot(r2_15, "R2", color=color.new(color.red, 70), linewidth=1)
-plot(s2_15, "S2", color=color.new(color.green, 70), linewidth=1)
+// Ichimoku Cloud
+p1 = plot(showCloud ? leadLine1 : na, offset=displacement - 1, color=#A5D6A7, title="Leading Span A")
+p2 = plot(showCloud ? leadLine2 : na, offset=displacement - 1, color=#EF9A9A, title="Leading Span B")
+fill(p1, p2, title="Cloud Fill", color=leadLine1 > leadLine2 ? color.new(#43A047, 10) : color.new(#F44336, 10))
+
+// Cloud boundary lines for reference (hidden by default)
+plot(showCloud ? (leadLine1 > leadLine2 ? leadLine1 : leadLine2) : na, offset=displacement - 1, title="Kumo Cloud Upper Line", display=display.none)
+plot(showCloud ? (leadLine1 < leadLine2 ? leadLine1 : leadLine2) : na, offset=displacement - 1, title="Kumo Cloud Lower Line", display=display.none)
+
+// ============================================
+// PLOTTING - PIVOT POINTS
+// ============================================
+var line pivotLine = na
+var line r1Line = na
+var line s1Line = na
+var line r2Line = na
+var line s2Line = na
+
+if showPivots
+    if currentPivotChange
+        if not na(pivotLine)
+            line.delete(pivotLine)
+            line.delete(r1Line)
+            line.delete(s1Line)
+            line.delete(r2Line)
+            line.delete(s2Line)
+        
+        pivotLine := line.new(bar_index, pivotCurrent, bar_index + 100, pivotCurrent, color=color.yellow, width=2)
+        r1Line := line.new(bar_index, r1Current, bar_index + 100, r1Current, color=color.new(#FB8C00, 30), width=1)
+        s1Line := line.new(bar_index, s1Current, bar_index + 100, s1Current, color=color.new(#FB8C00, 30), width=1)
+        r2Line := line.new(bar_index, r2Current, bar_index + 100, r2Current, color=color.new(#FB8C00, 50), width=1)
+        s2Line := line.new(bar_index, s2Current, bar_index + 100, s2Current, color=color.new(#FB8C00, 50), width=1)
+    else if not na(pivotLine)
+        line.set_x2(pivotLine, bar_index)
+        line.set_x2(r1Line, bar_index)
+        line.set_x2(s1Line, bar_index)
+        line.set_x2(r2Line, bar_index)
+        line.set_x2(s2Line, bar_index)
 
 // ============================================
 // SIGNAL LABELS
 // ============================================
 if showLabels and buySignal
-    label.new(bar_index, low, "BUY\nSL: " + str.tostring(kijun, "#.####"), 
+    label.new(bar_index, low, "BUY\nSL: " + str.tostring(baseLine, "#.####"), 
               style=label.style_label_up, 
               color=color.green, 
               textcolor=color.white, 
               size=size.normal)
 
 if showLabels and sellSignal
-    label.new(bar_index, high, "SELL\nSL: " + str.tostring(kijun, "#.####"), 
+    label.new(bar_index, high, "SELL\nSL: " + str.tostring(baseLine, "#.####"), 
               style=label.style_label_down, 
               color=color.red, 
               textcolor=color.white, 
@@ -264,15 +235,20 @@ if showTable and barstate.islast
     // Signal Status
     table.cell(infoTable, 0, 6, "Signal Status", text_color=color.white, text_size=size.tiny)
     table.merge_cells(infoTable, 1, 6, 2, 6)
-    table.cell(infoTable, 1, 6, dailyBuyersMarket and tfBuyersMarket ? "✓ BUY SIGNAL" : 
-                                   dailySellersMarket and tfSellersMarket ? "✓ SELL SIGNAL" : "WAIT", 
+    table.cell(infoTable, 1, 6, dailyBuyersMarket and tfBuyersMarket ? "BUY SIGNAL" : 
+                                   dailySellersMarket and tfSellersMarket ? "SELL SIGNAL" : "WAIT", 
                text_color=dailyBuyersMarket and tfBuyersMarket ? color.green : 
                           dailySellersMarket and tfSellersMarket ? color.red : color.gray, text_size=size.small)
     
-    // Current SL
+    // Current SL (Kijun-sen)
     table.cell(infoTable, 0, 7, "SL (Kijun)", text_color=color.white, text_size=size.tiny)
     table.merge_cells(infoTable, 1, 7, 2, 7)
-    table.cell(infoTable, 1, 7, str.tostring(kijun, "#.####"), text_color=color.orange, text_size=size.tiny)
+    table.cell(infoTable, 1, 7, str.tostring(baseLine, "#.####"), text_color=color.orange, text_size=size.tiny)
+    
+    // Daily Pivot
+    table.cell(infoTable, 0, 8, "Daily Pivot", text_color=color.white, text_size=size.tiny)
+    table.merge_cells(infoTable, 1, 8, 2, 8)
+    table.cell(infoTable, 1, 8, str.tostring(pivotD, "#.####"), text_color=color.yellow, text_size=size.tiny)
 
 // ============================================
 // ALERTS
