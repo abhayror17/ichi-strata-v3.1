@@ -7,7 +7,7 @@ indicator("Ichimoku + Pivot Points Scanner [Multi-TF]", overlay=true, max_labels
 grp_ichimoku = "Ichimoku Settings"
 conversionPeriods = input.int(9, "Conversion Line Length (Tenkan)", minval=1, group=grp_ichimoku)
 basePeriods = input.int(26, "Base Line Length (Kijun)", minval=1, group=grp_ichimoku)
-laggingPeriods = input.int(26, "Lagging Span Length (Chikou)", minval=1, group=ichimoku)
+laggingPeriods = input.int(26, "Lagging Span Length (Chikou)", minval=1, group=grp_ichimoku)
 displacement = input.int(26, "Displacement (Cloud Shift)", minval=1, group=grp_ichimoku)
 
 grp_pivot = "Pivot Point Settings"
