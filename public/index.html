@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FX Ichimoku MTF Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"/>
+<style>
+:root {
+  --bg:        #030c06;
+  --bg2:       #071410;
+  --bg3:       #0b1e14;
+  --border:    #0f3a1e;
+  --border2:   #1a5c30;
+  --cyan:      #00e5cc;
+  --cyan2:     #00b89a;
+  --cyan-dim:  #006655;
+  --green:     #00e676;
+  --green2:    #00c853;
+  --green-dim: #1a4a24;
+  --red:       #ff1744;
+  --red2:      #d50000;
+  --red-dim:   #3a0a0a;
+  --yellow:    #ffd600;
+  --yellow2:   #f9a825;
+  --white:     #e8f5e9;
+  --dim:       #2e5c3e;
+  --dim2:      #1a3a26;
+  --scan-glow: 0 0 20px rgba(0,229,204,0.15);
+  --font-mono: 'JetBrains Mono', 'Share Tech Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 13px; }
+
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 9999;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px, transparent 2px,
+    rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px
+  );
+  pointer-events: none;
+}
+
+/* CRT glow on edges */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 9998;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0,10,5,0.7) 100%);
+  pointer-events: none;
+}
+
+/* ── LAYOUT ────────────────────────────────── */
+#app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px 12px 40px;
+}
+
+/* ── HEADER ────────────────────────────────── */
+#header {
+  border: 1px solid var(--border2);
+  background: var(--bg2);
+  padding: 12px 18px;
+  margin-bottom: 16px;
+  position: relative;
+  box-shadow: var(--scan-glow), inset 0 1px 0 rgba(0,229,204,0.1);
+}
+
+#header::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+}
+
+.header-title {
+  color: var(--cyan);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(0,229,204,0.5);
+}
+
+.header-title span { color: var(--white); }
+
+.header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--dim);
+}
+
+.header-meta b { color: var(--cyan2); }
+
+/* ── STATUS BAR ────────────────────────────── */
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.78rem;
+  padding: 7px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.status-dot.scanning { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.status-dot.error    { background: var(--red);    box-shadow: 0 0 6px var(--red); animation: none; }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.status-txt   { color: var(--cyan2); }
+.status-time  { color: var(--dim); margin-left: auto; }
+
+/* Countdown progress bar */
+#countdown-wrap {
+  width: 100%;
+  margin-top: 2px;
+}
+.countdown-label { color: var(--dim); font-size: 0.72rem; margin-bottom: 3px; }
+#countdown-bar-outer {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+#countdown-bar-inner {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan-dim), var(--cyan));
+  width: 0%;
+  transition: width 1s linear;
+  border-radius: 2px;
+}
+
+/* ── SUMMARY PILLS ─────────────────────────── */
+#summary {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 4px 14px;
+  border-radius: 2px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  border: 1px solid;
+}
+.pill-bull  { background: rgba(0,200,83,0.08); border-color: var(--green2);  color: var(--green); }
+.pill-bear  { background: rgba(255,23,68,0.08); border-color: var(--red2);   color: var(--red); }
+.pill-neut  { background: rgba(255,214,0,0.06); border-color: var(--yellow2); color: var(--yellow); }
+.pill-total { background: rgba(0,229,204,0.05); border-color: var(--cyan-dim); color: var(--cyan2); }
+
+/* ── FILTER CONTROLS ───────────────────────── */
+#controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ctrl-label { color: var(--dim); font-size: 0.75rem; margin-right: 2px; }
+
+.btn {
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  color: var(--dim);
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  transition: all 0.15s;
+  border-radius: 2px;
+}
+.btn:hover { border-color: var(--cyan2); color: var(--cyan2); }
+.btn.active { background: rgba(0,229,204,0.1); border-color: var(--cyan); color: var(--cyan); }
+
+.btn-bull.active  { background: rgba(0,200,83,0.1);  border-color: var(--green2); color: var(--green); }
+.btn-bear.active  { background: rgba(255,23,68,0.1); border-color: var(--red2);   color: var(--red); }
+.btn-neut.active  { background: rgba(255,214,0,0.1); border-color: var(--yellow2); color: var(--yellow); }
+
+.sep { color: var(--border2); }
+
+/* ── TABLE WRAPPER ─────────────────────────── */
+#table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border2);
+  box-shadow: var(--scan-glow);
+  background: var(--bg2);
+}
+
+/* ── TABLE ─────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+thead tr {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border2);
+}
+
+thead th {
+  padding: 8px 10px;
+  text-align: left;
+  color: var(--cyan);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+thead th.right { text-align: right; }
+thead th.center { text-align: center; }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+tbody tr:hover { background: rgba(0,229,204,0.03); }
+tbody tr.changed-bull { animation: flashBull 1.5s ease-out; }
+tbody tr.changed-bear { animation: flashBear 1.5s ease-out; }
+
+@keyframes flashBull { 0%{background:rgba(0,200,83,0.18)} 100%{background:transparent} }
+@keyframes flashBear { 0%{background:rgba(255,23,68,0.18)} 100%{background:transparent} }
+
+td {
+  padding: 7px 10px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+td.right  { text-align: right; }
+td.center { text-align: center; }
+
+/* Pair name */
+.td-pair { font-weight: 700; color: var(--white); letter-spacing: 0.04em; }
+
+/* Price */
+.td-price { color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* Score */
+.td-score { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Trend badge */
+.trend-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.trend-STRONG-BULL  { color: #00ff88; border-color: #00ff8855; background: rgba(0,255,136,0.07); }
+.trend-BULL         { color: var(--green); border-color: #00c85355; background: rgba(0,200,83,0.07); }
+.trend-WEAK-BULL    { color: #69f0ae; border-color: #69f0ae33; background: rgba(105,240,174,0.05); }
+.trend-NEUTRAL      { color: var(--yellow); border-color: #ffd60033; background: rgba(255,214,0,0.05); }
+.trend-WEAK-BEAR    { color: #ff8a80; border-color: #ff8a8033; background: rgba(255,138,128,0.05); }
+.trend-BEAR         { color: var(--red); border-color: #d5000055; background: rgba(213,0,0,0.07); }
+.trend-STRONG-BEAR  { color: #ff1744; border-color: #ff174455; background: rgba(255,23,68,0.1); text-shadow: 0 0 8px rgba(255,23,68,0.4); }
+
+/* TF signal symbols */
+.sig { font-size: 0.9rem; font-weight: 700; }
+.sig-sb  { color: #00ff88; text-shadow: 0 0 6px rgba(0,255,136,0.5); }
+.sig-b   { color: var(--green); }
+.sig-wb  { color: #69f0ae; }
+.sig-n   { color: var(--dim); }
+.sig-wbr { color: #ff8a80; }
+.sig-br  { color: var(--red); }
+.sig-sbr { color: #ff1744; text-shadow: 0 0 6px rgba(255,23,68,0.5); }
+.sig-na  { color: var(--border2); }
+
+/* 4H Strength cell */
+.h4s-cell { font-size: 0.75rem; white-space: nowrap; }
+.h4s-label {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  margin-right: 4px;
+  border: 1px solid;
+}
+.h4s-STRONG  { color: #00ff88; border-color: #00ff8840; background: rgba(0,255,136,0.06); }
+.h4s-GROWING { color: var(--green); border-color: #00c85340; background: rgba(0,200,83,0.06); }
+.h4s-FADING  { color: var(--yellow); border-color: #ffd60040; background: rgba(255,214,0,0.06); }
+.h4s-RANGING { color: var(--cyan2); border-color: #00b89a40; background: rgba(0,184,154,0.06); }
+.h4s-WEAK    { color: var(--dim); border-color: var(--border); background: transparent; }
+
+.h4s-bear .h4s-STRONG  { color: #ff1744; border-color: #ff174440; background: rgba(255,23,68,0.06); }
+.h4s-bear .h4s-GROWING { color: var(--red); border-color: #d5000040; }
+
+.h4s-days { color: var(--dim); }
+.h4s-icon-up   { color: var(--green); }
+.h4s-icon-down { color: var(--yellow); }
+.h4s-icon-flat { color: var(--dim); }
+.h4s-pips { color: var(--border2); font-size: 0.7rem; }
+
+/* Delta indicator */
+.delta-up   { color: var(--green); font-size: 0.85rem; }
+.delta-down { color: var(--red);   font-size: 0.85rem; }
+
+/* ── CHANGE ALERTS ──────────────────────────── */
+#alerts {
+  margin-top: 14px;
+  border: 1px solid #3a2a00;
+  background: rgba(255,214,0,0.02);
+  padding: 10px 14px;
+  display: none;
+}
+#alerts.visible { display: block; }
+.alert-title {
+  color: var(--yellow);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: 0.08em;
+}
+.alert-row {
+  font-size: 0.76rem;
+  padding: 3px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,214,0,0.05);
+}
+.alert-row:last-child { border-bottom: none; }
+.alert-pair { color: var(--white); font-weight: 600; min-width: 60px; }
+.alert-from { color: var(--dim); }
+.alert-arrow { color: var(--dim); }
+.alert-to-bull { color: var(--green); font-weight: 700; }
+.alert-to-bear { color: var(--red);   font-weight: 700; }
+.alert-scores  { color: var(--dim); font-size: 0.7rem; }
+
+/* ── LEGEND ─────────────────────────────────── */
+#legend {
+  margin-top: 12px;
+  font-size: 0.72rem;
+  color: var(--dim);
+  line-height: 1.8;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+#legend b { color: var(--cyan2); }
+
+/* ── LOADING OVERLAY ────────────────────────── */
+#loading {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+#loading.hidden { display: none; }
+
+.boot-box {
+  border: 1px solid var(--border2);
+  padding: 28px 40px;
+  text-align: center;
+  box-shadow: var(--scan-glow);
+  max-width: 480px;
+  width: 90%;
+}
+.boot-title {
+  color: var(--cyan);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin-bottom: 6px;
+}
+.boot-sub   { color: var(--dim); font-size: 0.78rem; margin-bottom: 20px; }
+.boot-log   { text-align: left; font-size: 0.75rem; min-height: 90px; }
+.boot-log-line { color: var(--dim); padding: 1px 0; }
+.boot-log-line.active { color: var(--cyan2); }
+.boot-log-line::before { content: '> '; color: var(--cyan-dim); }
+
+.spinner {
+  width: 32px; height: 32px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── MOBILE ─────────────────────────────────── */
+@media (max-width: 700px) {
+  html { font-size: 11px; }
+  td, th { padding: 5px 6px; }
+  .header-title { font-size: 0.9rem; }
+  .h4s-pips { display: none; }
+}
+
+/* Column sort hover */
+thead th[data-sort] { cursor: pointer; user-select: none; }
+thead th[data-sort]:hover { color: var(--white); }
+thead th[data-sort].sort-asc::after  { content: ' ↑'; color: var(--cyan); }
+thead th[data-sort].sort-desc::after { content: ' ↓'; color: var(--cyan); }
+
+/* Number column */
+.td-num { color: var(--border2); font-size: 0.72rem; width: 28px; }
+</style>
+</head>
+<body>
+
+<!-- ── LOADING SCREEN ───────────────────────── -->
+<div id="loading">
+  <div class="boot-box">
+    <div class="spinner"></div>
+    <div class="boot-title">FX ICHIMOKU SCANNER</div>
+    <div class="boot-sub">Initializing market analysis engine...</div>
+    <div class="boot-log" id="boot-log"></div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ──────────────────────────────── -->
+<div id="app">
+
+  <!-- Header -->
+  <div id="header">
+    <div class="header-title">
+      ╔ FX ICHIMOKU <span>+</span> MTF CLOUD SCANNER ╗
+    </div>
+    <div class="header-meta">
+      <span>28 PAIRS</span>
+      <span>·</span>
+      <span><b>W1 · D1 · H4 · H1 · M15</b></span>
+      <span>·</span>
+      <span>ICHIMOKU CLOUD · 4H STRENGTH · AUTO-REFRESH</span>
+      <span>·</span>
+      <span id="hdr-updated">—</span>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div id="statusbar">
+    <div class="status-dot" id="status-dot"></div>
+    <span class="status-txt" id="status-txt">Connecting...</span>
+    <span class="status-time" id="status-time"></span>
+    <div id="countdown-wrap">
+      <div class="countdown-label" id="countdown-label">Next refresh in —</div>
+      <div id="countdown-bar-outer"><div id="countdown-bar-inner"></div></div>
+    </div>
+  </div>
+
+  <!-- Summary pills -->
+  <div id="summary">
+    <div class="pill pill-bull" id="pill-bull">▲ Bull: —</div>
+    <div class="pill pill-bear" id="pill-bear">▼ Bear: —</div>
+    <div class="pill pill-neut" id="pill-neut">— Neutral: —</div>
+    <div class="pill pill-total" id="pill-total">Total: —</div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    <span class="ctrl-label">FILTER:</span>
+    <button class="btn active"      data-filter="all"     onclick="setFilter('all',this)">ALL</button>
+    <button class="btn btn-bull"    data-filter="bullish"  onclick="setFilter('bullish',this)">▲ BULL</button>
+    <button class="btn btn-bear"    data-filter="bearish"  onclick="setFilter('bearish',this)">▼ BEAR</button>
+    <button class="btn btn-neut"    data-filter="neutral"  onclick="setFilter('neutral',this)">— NEUTRAL</button>
+    <span class="sep">│</span>
+    <span class="ctrl-label">SORT:</span>
+    <button class="btn active"      data-sort="score"    onclick="setSort('score',this)">STRENGTH</button>
+    <button class="btn btn-bull"    data-sort="bullish"  onclick="setSort('bullish',this)">MOST BULL</button>
+    <button class="btn btn-bear"    data-sort="bearish"  onclick="setSort('bearish',this)">MOST BEAR</button>
+    <span class="sep">│</span>
+    <button class="btn" onclick="manualRefresh()">⟳ REFRESH NOW</button>
+  </div>
+
+  <!-- Table -->
+  <div id="table-wrap">
+    <table id="main-table">
+      <thead>
+        <tr>
+          <th class="center">#</th>
+          <th data-sort="name">PAIR</th>
+          <th class="right" data-sort="price">PRICE</th>
+          <th class="center" data-sort="mtf_score">SCORE</th>
+          <th>MTF TREND</th>
+          <th class="center">W1</th>
+          <th class="center">D1</th>
+          <th class="center">H4</th>
+          <th class="center">H1</th>
+          <th class="center">M15</th>
+          <th>4H STRENGTH</th>
+          <th class="center">Δ</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Change alerts -->
+  <div id="alerts">
+    <div class="alert-title" id="alert-title"></div>
+    <div id="alert-list"></div>
+  </div>
+
+  <!-- Legend -->
+  <div id="legend">
+    <b>CONDITIONS PER TF:</b> Price vs Cloud · TK Cross · Future Cloud Color · Chikou-26 &nbsp;|&nbsp;
+    <b>SCORE:</b> weighted avg W1(×5) D1(×4) H4(×3) H1(×2) M15(×1) · Range −4 to +4<br>
+    <b>4H STRENGTH:</b> [label] [days in trend] [↑→↓ cloud momentum] [thickness in pips] &nbsp;|&nbsp;
+    <b>↑↓</b> = trend flipped since last scan &nbsp;|&nbsp;
+    ▲▲ Strong Bull · ▲ Bull · △ Weak Bull · — Neutral · ▽ Weak Bear · ▼ Bear · ▼▼ Strong Bear
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+const REFRESH_MS  = 2 * 60 * 1000;   // 2 minutes
+const API_URL     = '/api/scan';
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let allData      = [];
+let prevData     = {};    // symbol → result (previous scan)
+let scanNum      = 0;
+let filterMode   = 'all';
+let sortMode     = 'score';
+let sortDir      = -1;    // -1 = desc, 1 = asc
+let sortCol      = 'score';
+let nextScanTs   = null;
+let countdownId  = null;
+let refreshId    = null;
+let isScanning   = false;
+
+// ─────────────────────────────────────────────
+// BOOT LOG
+// ─────────────────────────────────────────────
+const BOOT_LINES = [
+  'Loading Ichimoku engine...',
+  'Connecting to market data (yfinance)...',
+  'Preparing 28 FX pairs...',
+  'W1 · D1 · H4 · H1 · M15 timeframes ready',
+  'Starting initial scan...',
+];
+let bootIdx = 0;
+function bootLog() {
+  const el = document.getElementById('boot-log');
+  if (bootIdx > 0 && el.children[bootIdx-1])
+    el.children[bootIdx-1].classList.remove('active');
+  if (bootIdx < BOOT_LINES.length) {
+    const d = document.createElement('div');
+    d.className = 'boot-log-line active';
+    d.textContent = BOOT_LINES[bootIdx];
+    el.appendChild(d);
+    bootIdx++;
+    setTimeout(bootLog, 420);
+  }
+}
+bootLog();
+
+// ─────────────────────────────────────────────
+// FETCH & SCAN
+// ─────────────────────────────────────────────
+async function fetchScan() {
+  if (isScanning) return;
+  isScanning = true;
+  setStatus('scanning', 'Scanning 28 pairs...');
+
+  try {
+    const res  = await fetch(API_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+
+    if (!json.pairs) throw new Error('Invalid response');
+
+    scanNum++;
+    const changes = detectChanges(json.pairs);
+    allData       = json.pairs;
+
+    // Update prevData
+    json.pairs.forEach(r => { prevData[r.symbol] = r; });
+
+    render(changes);
+    updateSummary();
+    updateAlerts(changes);
+
+    const now = new Date();
+    document.getElementById('hdr-updated').textContent =
+      'Updated: ' + now.toUTCString().replace('GMT','UTC');
+    document.getElementById('status-time').textContent =
+      'Scan #' + scanNum + ' · ' + now.toLocaleTimeString();
+
+    setStatus('live', 'Live · auto-refresh every 2 min');
+    scheduleNext();
+
+  } catch(e) {
+    setStatus('error', 'Error: ' + e.message + ' · retrying in 60s');
+    refreshId = setTimeout(fetchScan, 60000);
+  } finally {
+    isScanning = false;
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+
+function scheduleNext() {
+  clearTimeout(refreshId);
+  clearInterval(countdownId);
+  nextScanTs = Date.now() + REFRESH_MS;
+  tickCountdown();
+  countdownId = setInterval(tickCountdown, 1000);
+  refreshId   = setTimeout(() => {
+    clearInterval(countdownId);
+    fetchScan();
+  }, REFRESH_MS);
+}
+
+function tickCountdown() {
+  if (!nextScanTs) return;
+  const rem  = Math.max(0, nextScanTs - Date.now());
+  const mins = Math.floor(rem / 60000);
+  const secs = Math.floor((rem % 60000) / 1000);
+  const frac = 1 - rem / REFRESH_MS;
+  document.getElementById('countdown-label').textContent =
+    `Next refresh in ${mins}:${String(secs).padStart(2,'0')}`;
+  document.getElementById('countdown-bar-inner').style.width = (frac * 100).toFixed(1) + '%';
+}
+
+function manualRefresh() {
+  clearTimeout(refreshId);
+  clearInterval(countdownId);
+  fetchScan();
+}
+
+// ─────────────────────────────────────────────
+// CHANGE DETECTION
+// ─────────────────────────────────────────────
+function detectChanges(pairs) {
+  if (!Object.keys(prevData).length) return [];
+  const changes = [];
+  pairs.forEach(r => {
+    const old = prevData[r.symbol];
+    if (!old) return;
+    if (old.mtf_trend !== r.mtf_trend) {
+      changes.push({
+        symbol:    r.symbol,
+        name:      r.name,
+        old_trend: old.mtf_trend,
+        new_trend: r.mtf_trend,
+        old_score: old.mtf_score,
+        new_score: r.mtf_score,
+        bullish:   r.mtf_score > old.mtf_score,
+        color:     trendColor(r.mtf_trend),
+      });
+    }
+  });
+  return changes;
+}
+
+// ─────────────────────────────────────────────
+// FILTERING & SORTING
+// ─────────────────────────────────────────────
+function setFilter(f, btn) {
+  filterMode = f;
+  document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render([]);
+  updateSummary();
+}
+
+function setSort(s, btn) {
+  if (sortMode === s) { sortDir *= -1; }
+  else { sortMode = s; sortDir = -1; }
+  document.querySelectorAll('[data-sort]').forEach(b => {
+    b.classList.remove('active','sort-asc','sort-desc');
+  });
+  btn.classList.add('active', sortDir === -1 ? 'sort-desc' : 'sort-asc');
+  render([]);
+}
+
+function filtered() {
+  let d = [...allData];
+  if      (filterMode === 'bullish') d = d.filter(r => r.mtf_score > 0.5);
+  else if (filterMode === 'bearish') d = d.filter(r => r.mtf_score < -0.5);
+  else if (filterMode === 'neutral') d = d.filter(r => Math.abs(r.mtf_score) <= 0.5);
+
+  if (sortMode === 'bullish')  d.sort((a,b) => (b.mtf_score - a.mtf_score));
+  else if (sortMode === 'bearish') d.sort((a,b) => (a.mtf_score - b.mtf_score));
+  else                         d.sort((a,b) => (Math.abs(b.mtf_score) - Math.abs(a.mtf_score)));
+
+  if (sortDir === 1) d.reverse();
+  return d;
+}
+
+// ─────────────────────────────────────────────
+// RENDER TABLE
+// ─────────────────────────────────────────────
+function trendColor(trend) {
+  const map = {
+    'STRONG BULL':'#00ff88','BULL':'#00e676','WEAK BULL':'#69f0ae',
+    'NEUTRAL':'#ffd600',
+    'WEAK BEAR':'#ff8a80','BEAR':'#ff1744','STRONG BEAR':'#ff1744',
+    'NO DATA':'#2e5c3e',
+  };
+  return map[trend] || '#2e5c3e';
+}
+
+function trendClass(trend) {
+  return 'trend-' + (trend||'').replace(/ /g,'-');
+}
+
+function sigCell(sig) {
+  if (!sig) return '<span class="sig sig-na">?</span>';
+  const score = sig.score;
+  let cls, sym;
+  if      (score >= 3)  { cls='sig-sb';  sym='▲▲'; }
+  else if (score === 2) { cls='sig-b';   sym='▲'; }
+  else if (score === 1) { cls='sig-wb';  sym='△'; }
+  else if (score === 0) { cls='sig-n';   sym='—'; }
+  else if (score ===-1) { cls='sig-wbr'; sym='▽'; }
+  else if (score ===-2) { cls='sig-br';  sym='▼'; }
+  else                  { cls='sig-sbr'; sym='▼▼'; }
+  return `<span class="sig ${cls}" title="${sig.trend}">${sym}</span>`;
+}
+
+function h4sCell(h4s) {
+  if (!h4s) return '<span style="color:var(--border2)">—</span>';
+  const bearClass = h4s.side === 'bear' ? 'h4s-bear' : '';
+  const iconCls   = h4s.momentum_icon === '↑' ? 'h4s-icon-up'
+                  : h4s.momentum_icon === '↓' ? 'h4s-icon-down'
+                  : 'h4s-icon-flat';
+  const days = h4s.streak_days >= 1
+    ? h4s.streak_days.toFixed(1) + 'd'
+    : Math.round(h4s.streak_days * 24) + 'h';
+  return `<span class="h4s-cell ${bearClass}">` +
+    `<span class="h4s-label h4s-${h4s.label}">${h4s.label}</span>` +
+    `<span class="h4s-days">${days}</span> ` +
+    `<span class="${iconCls}">${h4s.momentum_icon}</span> ` +
+    `<span class="h4s-pips">${h4s.thick_pips}p</span>` +
+    `</span>`;
+}
+
+function fmtPrice(p) {
+  if (p == null) return '—';
+  return p > 100 ? p.toFixed(3) : p.toFixed(5);
+}
+
+function fmtScore(s) {
+  if (s == null) return '—';
+  return (s >= 0 ? '+' : '') + s.toFixed(2);
+}
+
+function render(changes) {
+  const rows    = filtered();
+  const changedSyms = new Set(changes.map(c => c.symbol));
+  const tbody   = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  rows.forEach((r, i) => {
+    const tfs     = r.tf_signals || {};
+    const changed = changedSyms.has(r.symbol);
+    const chg     = changed ? changes.find(c => c.symbol === r.symbol) : null;
+    const deltaHtml = chg
+      ? (chg.bullish
+          ? '<span class="delta-up">↑</span>'
+          : '<span class="delta-down">↓</span>')
+      : '<span style="color:var(--border2)">·</span>';
+
+    const tr = document.createElement('tr');
+    if (changed) tr.classList.add(chg.bullish ? 'changed-bull' : 'changed-bear');
+
+    tr.innerHTML = `
+      <td class="td-num center">${i+1}</td>
+      <td class="td-pair">${r.name}</td>
+      <td class="td-price right">${fmtPrice(r.price)}</td>
+      <td class="td-score center" style="color:${trendColor(r.mtf_trend)}">${fmtScore(r.mtf_score)}</td>
+      <td><span class="trend-badge ${trendClass(r.mtf_trend)}">${r.mtf_trend || 'NO DATA'}</span></td>
+      <td class="center">${sigCell(tfs.W1)}</td>
+      <td class="center">${sigCell(tfs.D1)}</td>
+      <td class="center">${sigCell(tfs.H4)}</td>
+      <td class="center">${sigCell(tfs.H1)}</td>
+      <td class="center">${sigCell(tfs.M15)}</td>
+      <td>${h4sCell(r.h4_strength)}</td>
+      <td class="center">${deltaHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ─────────────────────────────────────────────
+// SUMMARY
+// ─────────────────────────────────────────────
+function updateSummary() {
+  const d = allData;
+  const bulls = d.filter(r => r.mtf_score > 0.5).length;
+  const bears = d.filter(r => r.mtf_score < -0.5).length;
+  const neuts = d.length - bulls - bears;
+  document.getElementById('pill-bull').textContent  = `▲ Bull: ${bulls}`;
+  document.getElementById('pill-bear').textContent  = `▼ Bear: ${bears}`;
+  document.getElementById('pill-neut').textContent  = `— Neutral: ${neuts}`;
+  document.getElementById('pill-total').textContent = `Total: ${d.length}`;
+}
+
+// ─────────────────────────────────────────────
+// ALERTS
+// ─────────────────────────────────────────────
+function updateAlerts(changes) {
+  const el   = document.getElementById('alerts');
+  const list = document.getElementById('alert-list');
+  const ttl  = document.getElementById('alert-title');
+  if (!changes.length) { el.classList.remove('visible'); return; }
+
+  ttl.textContent = `⚡ ${changes.length} SIGNAL CHANGE${changes.length>1?'S':''} THIS SCAN`;
+  list.innerHTML = changes.map(c => {
+    const arrow  = c.bullish ? '↑' : '↓';
+    const toCls  = c.bullish ? 'alert-to-bull' : 'alert-to-bear';
+    return `<div class="alert-row">
+      <span style="color:${c.bullish?'var(--green)':'var(--red)'}">${arrow}</span>
+      <span class="alert-pair">${c.name}</span>
+      <span class="alert-from">${c.old_trend}</span>
+      <span class="alert-arrow">→</span>
+      <span class="${toCls}">${c.new_trend}</span>
+      <span class="alert-scores">(${fmtScore(c.old_score)} → ${fmtScore(c.new_score)})</span>
+    </div>`;
+  }).join('');
+  el.classList.add('visible');
+}
+
+// ─────────────────────────────────────────────
+// STATUS
+// ─────────────────────────────────────────────
+function setStatus(type, msg) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-txt');
+  dot.className = 'status-dot ' + (type === 'scanning' ? 'scanning' : type === 'error' ? 'error' : '');
+  txt.textContent = msg;
+}
+
+// ─────────────────────────────────────────────
+// TABLE HEADER SORT CLICK
+// ─────────────────────────────────────────────
+document.querySelectorAll('thead th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.sort;
+    if (sortCol === col) { sortDir *= -1; }
+    else { sortCol = col; sortDir = -1; }
+    document.querySelectorAll('thead th[data-sort]').forEach(h => {
+      h.classList.remove('sort-asc','sort-desc');
+    });
+    th.classList.add(sortDir === -1 ? 'sort-desc' : 'sort-asc');
+
+    // Map column to sort mode
+    if (col === 'mtf_score') { sortMode = 'score'; }
+    else if (col === 'name') { sortMode = 'name'; }
+    render([]);
+  });
+});
+
+// ─────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────
+setTimeout(() => {
+  fetchScan();
+}, 2100);
+</script>
+</body>
+</html>
